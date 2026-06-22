@@ -10,6 +10,8 @@ jobs:
   deploy:
     # Run this workflow ONLY on your self-hosted physical VM runner
     runs-on: self-hosted
+    env:
+      ACTIONS_RUNNER_FORCE_NODE24: "true"
 
     steps:
       - name: Checkout Code Repository
