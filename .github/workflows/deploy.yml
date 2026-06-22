@@ -1,23 +1,25 @@
 name: Continuous Deployment
 
+# Trigger the workflow every time code is pushed to the 'main' branch
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
-    runs-on: self-hosted  # Instructs GitHub to only run this on your private VM
+    # Run this workflow ONLY on your self-hosted physical VM runner
+    runs-on: self-hosted
 
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Node.js Dependencies
         run: npm install
 
-      - name: Build Application
+      - name: Build Application Templates & Assets
         run: npm run build
 
-      - name: Hot Restart Application with PM2
+      - name: Hot Restart Application Server with PM2
         run: pm2 restart task-manager-app || pm2 start dist/server.cjs --name "task-manager-app"
-    
