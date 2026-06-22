@@ -3,7 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
-import { TEAM_MEMBERS, DEFAULT_PROJECTS, DEFAULT_RULES, PRESET_TEMPLATES } from './src/data.js';
+import { TEAM_MEMBERS, DEFAULT_PROJECTS, DEFAULT_RULES, PRESET_TEMPLATES } from './src/data';
 
 dotenv.config();
 
