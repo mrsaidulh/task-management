@@ -1,0 +1,6 @@
+{
+  "name": "Collaborative Work Management Platform",
+  "description": "A real-time work management platform like Asana for remote teams, featuring task prioritization, automated workflows, deadline tracking, and integrated team messaging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

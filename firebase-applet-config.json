@@ -1,0 +1,10 @@
+{
+  "projectId": "ielts-crm-production",
+  "appId": "1:789928245981:web:95fd39ede9ba26dcce7934",
+  "apiKey": "AIzaSyC1Hax0IV7gpHhFu3KQ2wd9zORyVsGSsI8",
+  "authDomain": "ielts-crm-production.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-521cdedd-d582-42a2-b30b-b7c960149a52",
+  "storageBucket": "ielts-crm-production.firebasestorage.app",
+  "messagingSenderId": "789928245981",
+  "measurementId": ""
+}

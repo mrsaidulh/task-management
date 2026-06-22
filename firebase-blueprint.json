@@ -1,0 +1,152 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with roles and credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "email": { "type": "string" },
+        "avatarColor": { "type": "string" },
+        "avatarText": { "type": "string" },
+        "isOwner": { "type": "boolean" },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "email", "avatarColor", "avatarText"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "An alignment project for remote team operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique ID of the project" },
+        "name": { "type": "string", "description": "The project name" },
+        "description": { "type": "string", "description": "The goal or purpose of the project" },
+        "color": { "type": "string", "description": "Gradient color skin class" }
+      },
+      "required": ["id", "name"]
+    },
+    "WorkflowRule": {
+      "title": "WorkflowRule",
+      "description": "An automation trigger and action rule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "triggerType": { "type": "string" },
+        "triggerValue": { "type": "string" },
+        "actionType": { "type": "string" },
+        "actionValue": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "triggerType", "triggerValue", "actionType", "actionValue", "active"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A single trackable workspace task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["todo", "in_progress", "review", "done"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "dueDate": { "type": "string" },
+        "startDate": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "tags": { "type": "array" },
+        "checklist": { "type": "array" },
+        "projectId": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "completedAt": { "type": "number" }
+      },
+      "required": ["id", "title", "status", "priority", "projectId", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A channel chat message",
+      "type": "object",
+      "properties": {
+        "channelId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["channelId", "senderId", "text", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "A history entry of team actions",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "taskId": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "userName", "action", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A discussion feedback on a task",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["taskId", "senderId", "text", "createdAt"]
+    },
+    "Presence": {
+      "title": "Presence",
+      "description": "The online presence status of active members",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "lastActive": { "type": "number" },
+        "online": { "type": "boolean" }
+      },
+      "required": ["userId", "lastActive", "online"]
+    }
+  },
+  "firestore": {
+    "projects": {
+      "schema": "Project",
+      "description": "Projects list"
+    },
+    "workflowRules": {
+      "schema": "WorkflowRule",
+      "description": "Automation workflow rules"
+    },
+    "tasks": {
+      "schema": "Task",
+      "description": "Active sprint tasks list"
+    },
+    "messages": {
+      "schema": "Message",
+      "description": "Chat channels messaging messages"
+    },
+    "activity_logs": {
+      "schema": "ActivityLog",
+      "description": "Recorded operations activities log"
+    },
+    "comments": {
+      "schema": "Comment",
+      "description": "Task discussions feedback comments"
+    },
+    "presence": {
+      "schema": "Presence",
+      "description": "Member status tracking live heartbeats"
+    },
+    "users": {
+      "schema": "UserProfile",
+      "description": "CoWork workspace team members and system logins"
+    }
+  }
+}

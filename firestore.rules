@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- PRIMITIVE HELPERS ---
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- DEFAULT DENY ALL FALLBACK ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- VALIDATION BLUEPRINTS ---
+
+    function isValidProject(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && (!('color' in data) || (data.color is string && data.color.size() <= 100))
+        && (!('memberRoles' in data) || data.memberRoles is map);
+    }
+
+    function isValidWorkflowRule(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.triggerType is string && data.triggerType.size() <= 100
+        && data.triggerValue is string && data.triggerValue.size() <= 100
+        && data.actionType is string && data.actionType.size() <= 100
+        && data.actionValue is string && data.actionValue.size() <= 1000
+        && data.active is bool;
+    }
+
+    function isValidTask(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 300
+        && data.status in ['todo', 'in_progress', 'review', 'done']
+        && data.priority in ['low', 'medium', 'high']
+        && data.projectId is string && data.projectId.size() <= 128
+        && (!('description' in data) || (data.description is string && data.description.size() <= 5000))
+        && (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 100))
+        && (!('startDate' in data) || (data.startDate is string && data.startDate.size() <= 100))
+        && (!('completedAt' in data) || data.completedAt == null || data.completedAt is int)
+        && (!('assigneeId' in data) || (data.assigneeId is string && data.assigneeId.size() <= 100))
+        && (!('tags' in data) || (data.tags is list && data.tags.size() <= 20))
+        && (!('checklist' in data) || (data.checklist is list && data.checklist.size() <= 50))
+        && (!('dependencies' in data) || (data.dependencies is list && data.dependencies.size() <= 50));
+    }
+
+    function isValidMessage(data) {
+      return data.channelId is string && data.channelId.size() <= 128
+        && data.senderId is string && data.senderId.size() <= 128
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 5000
+        && data.createdAt is int;
+    }
+
+    function isValidActivityLog(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.userName is string && data.userName.size() <= 200
+        && data.action is string && data.action.size() > 0 && data.action.size() <= 2000
+        && data.createdAt is int;
+    }
+
+    function isValidComment(data) {
+      return data.taskId is string && data.taskId.size() <= 128
+        && data.senderId is string && data.senderId.size() <= 128
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 5000
+        && data.createdAt is int;
+    }
+
+    function isValidPresence(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.lastActive is int
+        && data.online is bool;
+    }
+
+    function isValidUserProfile(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.role is string && data.role.size() <= 200
+        && data.email is string && data.email.size() <= 200
+        && data.avatarColor is string && data.avatarColor.size() <= 200
+        && data.avatarText is string && data.avatarText.size() <= 20
+        && (!('isOwner' in data) || data.isOwner is bool)
+        && (!('password' in data) || data.password is string && data.password.size() <= 100);
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /projects/{projectId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(projectId) && isValidProject(request.resource.data);
+    }
+
+    match /workflowRules/{ruleId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(ruleId) && isValidWorkflowRule(request.resource.data);
+    }
+
+    match /tasks/{taskId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(taskId) && isValidTask(request.resource.data);
+    }
+
+    match /messages/{messageId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(messageId) && isValidMessage(request.resource.data);
+    }
+
+    match /activity_logs/{logId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(logId) && isValidActivityLog(request.resource.data);
+    }
+
+    match /comments/{commentId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(commentId) && isValidComment(request.resource.data);
+    }
+
+    match /presence/{userId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(userId) && isValidPresence(request.resource.data);
+    }
+
+    match /users/{userId} {
+      allow read, delete: if true;
+      allow create, update: if isValidId(userId) && isValidUserProfile(request.resource.data);
+    }
+
+    match /projectTemplates/{templateId} {
+      allow read, write: if true;
+    }
+  }
+}
