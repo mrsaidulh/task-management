@@ -412,7 +412,7 @@ export default function App() {
               <div className="w-3.5 h-3.5 bg-white rounded-sm" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-slate-900 tracking-tight">CoWork Worksuite</h1>
+              <h1 className="text-sm font-bold text-slate-900 tracking-tight">Fluresta Worksuite</h1>
               <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Remote Operations</p>
             </div>
           </div>
@@ -520,7 +520,7 @@ export default function App() {
           >
             <Users size={14} className={activeTab === 'team' ? 'text-indigo-600' : 'text-slate-400'} />
             <span className="flex items-center gap-1.5 w-full justify-between">
-              <span>CoWork Team Management</span>
+              <span>Fluresta Team Management</span>
               {currentUser.isOwner && (
                 <span className="text-[8px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded-full scale-90">Owner</span>
               )}
