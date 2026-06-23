@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import { TEAM_MEMBERS, DEFAULT_PROJECTS, DEFAULT_RULES, PRESET_TEMPLATES } from './src/data';
 
 dotenv.config();
@@ -93,9 +94,73 @@ let mem_messages: any[] = [];
 let mem_templates = [...PRESET_TEMPLATES];
 let mem_presenceMap: Record<string, number> = {};
 
+// --- Local JSON File Persistence Fallback Helper ---
+const BACKUP_FILE_PATH = path.join(process.cwd(), 'db-fallback.json');
+
+function saveLocalFallback() {
+  try {
+    const data = {
+      mem_tasks,
+      mem_projects,
+      mem_users,
+      mem_rules,
+      mem_logs,
+      mem_comments,
+      mem_messages,
+      mem_templates,
+    };
+    fs.writeFileSync(BACKUP_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    console.log('[Fallback Storage] Saved current work state successfully to local file.');
+  } catch (error) {
+    console.error('[Fallback Storage] Failed to write local backup file:', error);
+  }
+}
+
+function loadLocalFallback() {
+  try {
+    if (fs.existsSync(BACKUP_FILE_PATH)) {
+      const dataStr = fs.readFileSync(BACKUP_FILE_PATH, 'utf-8');
+      const data = JSON.parse(dataStr);
+      if (data.mem_tasks) mem_tasks = data.mem_tasks;
+      if (data.mem_projects) mem_projects = data.mem_projects;
+      if (data.mem_users) mem_users = data.mem_users;
+      if (data.mem_rules) mem_rules = data.mem_rules;
+      if (data.mem_logs) mem_logs = data.mem_logs;
+      if (data.mem_comments) mem_comments = data.mem_comments;
+      if (data.mem_messages) mem_messages = data.mem_messages;
+      if (data.mem_templates) mem_templates = data.mem_templates;
+      console.log('[Fallback Storage] Loaded existing work items from local db-fallback.json successfully.');
+    } else {
+      console.log('[Fallback Storage] No previous local backup file found. Initializing with default seed values.');
+    }
+  } catch (error) {
+    console.error('[Fallback Storage] Failed to load local backup file:', error);
+  }
+}
+
 // --- MySQL Database Configuration & Pool ---
 let mysqlPool: mysql.Pool | null = null;
 let useMySQL = false;
+
+// Automatically load local backup on startup
+loadLocalFallback();
+
+// Register JSON backup middleware with Express synchronously before other API routes are defined
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function (body) {
+    const result = originalJson.call(this, body);
+    try {
+      if (!useMySQL && ['POST', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api') && !req.path.startsWith('/api/presence') && res.statusCode < 400) {
+        saveLocalFallback();
+      }
+    } catch (e) {
+      console.error('[Fallback Storage] Error auto-saving on API modification:', e);
+    }
+    return result;
+  };
+  next();
+});
 
 async function bootstrapMySQL() {
   const host = process.env.DB_HOST;
