@@ -93,10 +93,14 @@ export default function App() {
 
   // Multi-user Profile context
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('as_active_user');
-    if (saved) {
-      const parsed = TEAM_MEMBERS.find(m => m.id === saved);
-      if (parsed) return parsed;
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('as_active_user') : null;
+      if (saved) {
+        const parsed = TEAM_MEMBERS.find(m => m.id === saved);
+        if (parsed) return parsed;
+      }
+    } catch (e) {
+      console.warn('localStorage is blocked or unavailable:', e);
     }
     return TEAM_MEMBERS[0]; // defaults to Sarah Chen
   });
@@ -188,8 +192,14 @@ export default function App() {
   useEffect(() => {
     startUserPresenceHeartbeat(currentUser.id);
     
-    // Save locally
-    localStorage.setItem('as_active_user', currentUser.id);
+    // Save locally safely
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('as_active_user', currentUser.id);
+      }
+    } catch (e) {
+      console.warn('localStorage is blocked or unavailable:', e);
+    }
 
     return () => {
       stopUserPresenceHeartbeat(currentUser.id);

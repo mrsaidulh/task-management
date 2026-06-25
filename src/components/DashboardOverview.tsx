@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Task, Project, ActivityLog, UserProfile, ProjectRole } from '../types';
 import { TEAM_MEMBERS } from '../data';
-import { motion } from 'motion/react';
 import { 
   AlertTriangle, 
   CheckCircle, 

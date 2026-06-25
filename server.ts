@@ -9,7 +9,7 @@ import { TEAM_MEMBERS, DEFAULT_PROJECTS, DEFAULT_RULES, PRESET_TEMPLATES } from 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.APPLET_ID ? 3000 : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
 
 app.use(express.json());
 

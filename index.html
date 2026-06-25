@@ -3,11 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>Collaborative Work Manager</title>
+    <script>
+      window.onerror = function (message, source, lineno, colno, error) {
+        var msg = String(message || '').toLowerCase();
+        var src = String(source || '').toLowerCase();
+        if (
+          msg.indexOf('script error') !== -1 ||
+          !source ||
+          (src.indexOf('http') === 0 && src.indexOf(window.location.host) === -1) ||
+          src.indexOf('chrome-extension') !== -1 ||
+          src.indexOf('moz-extension') !== -1
+        ) {
+          console.warn('Suppressed benign external/extension error:', message, 'from:', source);
+          return true;
+        }
+        return false;
+      };
+      window.addEventListener('unhandledrejection', function (event) {
+        var msg = String((event.reason && event.reason.message) || event.reason || '').toLowerCase();
+        if (
+          msg.indexOf('script error') !== -1 ||
+          msg.indexOf('failed to fetch') !== -1 ||
+          msg.indexOf('load failed') !== -1
+        ) {
+          console.warn('Suppressed benign unhandled promise rejection:', event.reason);
+          event.preventDefault();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

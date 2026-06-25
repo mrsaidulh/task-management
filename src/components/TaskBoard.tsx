@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Task, TaskStatus, Project, UserProfile } from '../types';
 import { TEAM_MEMBERS } from '../data';
-import { motion } from 'motion/react';
 import { 
   Plus, 
   Calendar, 

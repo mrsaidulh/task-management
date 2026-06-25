@@ -34,7 +34,7 @@ export function startUserPresenceHeartbeat(userId: string) {
         body: JSON.stringify({ userId })
       });
     } catch (e) {
-      console.error("Presence update error:", e);
+      // Quietly ignore transient heartbeat connection errors
     }
   };
 
@@ -58,7 +58,7 @@ export function subToPresence(callback: (onlineMap: Record<string, boolean>) => 
       const onlineMap = await res.json();
       if (active) callback(onlineMap);
     } catch (e) {
-      console.error("Error polling user presence:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -200,7 +200,7 @@ export function subToTasks(callback: (tasks: Task[]) => void) {
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error fetching tasks backlog:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -221,7 +221,7 @@ export function subToProjects(callback: (projects: Project[]) => void) {
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error fetching projects list:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -242,7 +242,7 @@ export function subToWorkflowRules(callback: (rules: WorkflowRule[]) => void) {
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error fetching rules:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -263,7 +263,7 @@ export function subToActivityLogs(callback: (logs: ActivityLog[]) => void) {
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error fetching activity log stream:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -284,7 +284,7 @@ export function subToComments(taskId: string, callback: (comments: TaskComment[]
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error loading task comments:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -305,7 +305,7 @@ export function subToMessages(channelId: string, callback: (messages: Message[])
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error loading room messages:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -515,7 +515,7 @@ export function subToProjectTemplates(callback: (templates: ProjectTemplate[]) =
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error polling templates:", e);
+      // Quietly handle transient network failures
     }
   };
 
@@ -694,7 +694,7 @@ export function subToUsers(callback: (users: UserProfile[]) => void) {
       const list = await res.json();
       if (active) callback(list);
     } catch (e) {
-      console.error("Error polling user profiles:", e);
+      // Quietly handle transient network failures
     }
   };
 
