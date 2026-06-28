@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import nodemailer from 'nodemailer';
 import { TEAM_MEMBERS, DEFAULT_PROJECTS, DEFAULT_RULES, PRESET_TEMPLATES } from './src/data';
 
 dotenv.config();
@@ -93,6 +94,16 @@ let mem_comments: any[] = [];
 let mem_messages: any[] = [];
 let mem_templates = [...PRESET_TEMPLATES];
 let mem_presenceMap: Record<string, number> = {};
+let mem_smtpConfig = {
+  host: 'smtp.mailtrap.io',
+  port: 2525,
+  secure: false,
+  username: 'smtp_username_placeholder',
+  password: 'smtp_password_placeholder',
+  senderEmail: 'noreply@fluresta.com',
+  senderName: 'Fluresta Worksuite',
+  updatedAt: Date.now()
+};
 
 // --- Local JSON File Persistence Fallback Helper ---
 const BACKUP_FILE_PATH = path.join(process.cwd(), 'db-fallback.json');
@@ -108,6 +119,7 @@ function saveLocalFallback() {
       mem_comments,
       mem_messages,
       mem_templates,
+      mem_smtpConfig,
     };
     fs.writeFileSync(BACKUP_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
     console.log('[Fallback Storage] Saved current work state successfully to local file.');
@@ -123,12 +135,19 @@ function loadLocalFallback() {
       const data = JSON.parse(dataStr);
       if (data.mem_tasks) mem_tasks = data.mem_tasks;
       if (data.mem_projects) mem_projects = data.mem_projects;
-      if (data.mem_users) mem_users = data.mem_users;
+      if (data.mem_users) {
+        mem_users = data.mem_users.map((u: any) => ({
+          ...u,
+          password: u.password || 'password123',
+          isOwner: u.id === 'user_sarah' ? true : !!u.isOwner
+        }));
+      }
       if (data.mem_rules) mem_rules = data.mem_rules;
       if (data.mem_logs) mem_logs = data.mem_logs;
       if (data.mem_comments) mem_comments = data.mem_comments;
       if (data.mem_messages) mem_messages = data.mem_messages;
       if (data.mem_templates) mem_templates = data.mem_templates;
+      if (data.mem_smtpConfig) mem_smtpConfig = data.mem_smtpConfig;
       console.log('[Fallback Storage] Loaded existing work items from local db-fallback.json successfully.');
     } else {
       console.log('[Fallback Storage] No previous local backup file found. Initializing with default seed values.');
@@ -262,9 +281,16 @@ async function runMigrations() {
       updatedAt BIGINT NOT NULL,
       completedAt BIGINT NULL,
       dependencies JSON NULL,
-      order_val DOUBLE NULL
+      order_val DOUBLE NULL,
+      timeSpent INT DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  try {
+    await mysqlPool.query(`ALTER TABLE tasks ADD COLUMN timeSpent INT DEFAULT 0;`);
+  } catch (e) {
+    // Column might already exist, safe to ignore
+  }
 
   // 4. Workflow Rules Table
   await mysqlPool.query(`
@@ -333,6 +359,21 @@ async function runMigrations() {
     CREATE TABLE IF NOT EXISTS presence (
       userId VARCHAR(255) PRIMARY KEY,
       lastActive BIGINT NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  // 10. SMTP Configuration Table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS smtpConfig (
+      id VARCHAR(255) PRIMARY KEY,
+      host VARCHAR(255) NOT NULL,
+      port INT NOT NULL,
+      secure BOOLEAN DEFAULT FALSE,
+      username VARCHAR(255) NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      senderEmail VARCHAR(255) NOT NULL,
+      senderName VARCHAR(255) NOT NULL,
+      updatedAt BIGINT NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
@@ -421,6 +462,16 @@ async function seedStaticDataIfEmpty() {
       }
     }
 
+    // Audit SMTP Config
+    const [smtpRows]: any = await mysqlPool.query('SELECT COUNT(*) as count FROM smtpConfig');
+    if (smtpRows[0].count === 0) {
+      console.log('[Schema Seed] Seeding default SMTP config...');
+      await mysqlPool.query(
+        'INSERT INTO smtpConfig (id, host, port, secure, username, password, senderEmail, senderName, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ['default', 'smtp.mailtrap.io', 2525, 0, 'smtp_username_placeholder', 'smtp_password_placeholder', 'noreply@fluresta.com', 'Fluresta Worksuite', Date.now()]
+      );
+    }
+
     console.log('[Schema Seed] MySQL schema check complete.');
   } catch (error) {
     console.error('[Schema Seed] Failed checking or seeding tables in MySQL:', error);
@@ -433,6 +484,112 @@ async function seedStaticDataIfEmpty() {
 // -------------------------------------------------------------
 // ------------------- REST CONTROLLERS / API -------------------
 // -------------------------------------------------------------
+
+// --- 0. USER AUTHENTICATION ---
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (useMySQL && mysqlPool) {
+    try {
+      const [rows]: any = await mysqlPool.query('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+      if (rows.length === 0) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+      const user = rows[0];
+      const dbPassword = user.password || 'password123';
+      if (password !== dbPassword) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+      return res.json({
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        avatarColor: user.avatarColor,
+        avatarText: user.avatarText,
+        isOwner: !!user.isOwner,
+        password: dbPassword
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else {
+    const user = mem_users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    const userPassword = user.password || 'password123';
+    if (password !== userPassword) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    return res.json({
+      ...user,
+      password: userPassword,
+      isOwner: !!user.isOwner
+    });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, password, role, isOwner, avatarColor, avatarText } = req.body;
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ error: 'Name, email, password, and job role are required' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const id = 'user_' + Math.floor(Math.random() * 100000);
+  const initials = name.trim().split(/\s+/).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+  const defaultColors = [
+    'bg-indigo-600 text-white border-indigo-700',
+    'bg-sky-500 text-white border-sky-600',
+    'bg-emerald-500 text-white border-emerald-600',
+    'bg-pink-500 text-white border-pink-600',
+    'bg-amber-500 text-white border-amber-600'
+  ];
+  const color = avatarColor || defaultColors[Math.floor(Math.random() * defaultColors.length)];
+  const txt = avatarText || initials || '??';
+
+  const newUser = {
+    id,
+    name: name.trim(),
+    role: role.trim(),
+    email: cleanEmail,
+    avatarColor: color,
+    avatarText: txt,
+    isOwner: !!isOwner,
+    password: password.trim()
+  };
+
+  if (useMySQL && mysqlPool) {
+    try {
+      const [existing]: any = await mysqlPool.query('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+      if (existing.length > 0) {
+        return res.status(400).json({ error: 'A user with this email already exists' });
+      }
+
+      await mysqlPool.query(
+        'INSERT INTO users (id, name, role, email, avatarColor, avatarText, isOwner, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [newUser.id, newUser.name, newUser.role, newUser.email, newUser.avatarColor, newUser.avatarText, newUser.isOwner ? 1 : 0, newUser.password]
+      );
+      return res.json(newUser);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else {
+    const existing = mem_users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      return res.status(400).json({ error: 'A user with this email already exists' });
+    }
+    mem_users.push(newUser);
+    saveLocalFallback();
+    return res.json(newUser);
+  }
+});
 
 // --- 1. USER PROFILES ---
 app.get('/api/users', async (req, res) => {
@@ -579,7 +736,7 @@ app.get('/api/tasks', async (req, res) => {
   if (useMySQL && mysqlPool) {
     try {
       const [rows]: any = await mysqlPool.query('SELECT * FROM tasks ORDER BY createdAt DESC');
-      const formatted = rows.map((t: any) => ({
+       const formatted = rows.map((t: any) => ({
         ...t,
         tags: typeof t.tags === 'string' ? JSON.parse(t.tags) : (t.tags || []),
         checklist: typeof t.checklist === 'string' ? JSON.parse(t.checklist) : (t.checklist || []),
@@ -587,7 +744,8 @@ app.get('/api/tasks', async (req, res) => {
         completedAt: t.completedAt ? Number(t.completedAt) : undefined,
         createdAt: Number(t.createdAt),
         updatedAt: Number(t.updatedAt),
-        order: t.order_val !== null ? Number(t.order_val) : undefined
+        order: t.order_val !== null ? Number(t.order_val) : undefined,
+        timeSpent: t.timeSpent !== null && t.timeSpent !== undefined ? Number(t.timeSpent) : 0
       }));
       return res.json(formatted);
     } catch (e: any) {
@@ -603,7 +761,7 @@ app.post('/api/tasks', async (req, res) => {
   if (useMySQL && mysqlPool) {
     try {
       await mysqlPool.query(
-        'INSERT INTO tasks (id, title, description, status, priority, dueDate, startDate, assigneeId, tags, checklist, projectId, createdAt, updatedAt, completedAt, dependencies, order_val) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO tasks (id, title, description, status, priority, dueDate, startDate, assigneeId, tags, checklist, projectId, createdAt, updatedAt, completedAt, dependencies, order_val, timeSpent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           task.id,
           task.title,
@@ -620,7 +778,8 @@ app.post('/api/tasks', async (req, res) => {
           task.updatedAt,
           task.completedAt || null,
           JSON.stringify(task.dependencies || []),
-          task.order !== undefined ? task.order : null
+          task.order !== undefined ? task.order : null,
+          task.timeSpent || 0
         ]
       );
       return res.json(task);
@@ -961,6 +1120,137 @@ app.post('/api/presence', async (req, res) => {
   } else {
     mem_presenceMap[userId] = now;
     return res.json({ success: true });
+  }
+});
+
+
+// --- 10. SMTP SETTINGS ---
+app.get('/api/settings/smtp', async (req, res) => {
+  if (useMySQL && mysqlPool) {
+    try {
+      const [rows]: any = await mysqlPool.query('SELECT * FROM smtpConfig WHERE id = ?', ['default']);
+      if (rows.length > 0) {
+        // Map 1/0 secure boolean
+        const row = rows[0];
+        return res.json({
+          ...row,
+          secure: !!row.secure
+        });
+      } else {
+        return res.json({
+          host: 'smtp.mailtrap.io',
+          port: 2525,
+          secure: false,
+          username: 'smtp_username_placeholder',
+          password: 'smtp_password_placeholder',
+          senderEmail: 'noreply@fluresta.com',
+          senderName: 'Fluresta Worksuite',
+          updatedAt: Date.now()
+        });
+      }
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else {
+    return res.json(mem_smtpConfig);
+  }
+});
+
+app.post('/api/settings/smtp', async (req, res) => {
+  const config = req.body;
+  const { host, port, secure, username, password, senderEmail, senderName } = config;
+  
+  if (useMySQL && mysqlPool) {
+    try {
+      await mysqlPool.query(
+        `INSERT INTO smtpConfig (id, host, port, secure, username, password, senderEmail, senderName, updatedAt) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+         host = ?, port = ?, secure = ?, username = ?, password = ?, senderEmail = ?, senderName = ?, updatedAt = ?`,
+        [
+          'default', host, Number(port), secure ? 1 : 0, username, password, senderEmail, senderName, Date.now(),
+          host, Number(port), secure ? 1 : 0, username, password, senderEmail, senderName, Date.now()
+        ]
+      );
+      return res.json({ success: true, ...config });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else {
+    mem_smtpConfig = {
+      host,
+      port: Number(port),
+      secure: !!secure,
+      username,
+      password,
+      senderEmail,
+      senderName,
+      updatedAt: Date.now()
+    };
+    saveLocalFallback();
+    return res.json({ success: true, ...mem_smtpConfig });
+  }
+});
+
+app.post('/api/settings/smtp/test', async (req, res) => {
+  const { recipient, host, port, secure, username, password, senderEmail, senderName } = req.body;
+  if (!recipient) {
+    return res.status(400).json({ error: 'Recipient email is required' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port: Number(port),
+      secure: !!secure,
+      auth: {
+        user: username,
+        pass: password
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: `"${senderName || 'Fluresta'}" <${senderEmail || 'noreply@fluresta.com'}>`,
+      to: recipient,
+      subject: 'SMTP Connection Test - Fluresta Worksuite',
+      text: `Hello!\n\nThis is a test email confirming that your SMTP configuration in Fluresta Worksuite works perfectly.\n\nConnection Details:\n- Host: ${host}\n- Port: ${port}\n- Secure: ${secure ? 'Yes' : 'No'}\n\nHave a great day!\n- Fluresta Worksuite Team`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <h2 style="color: #4f46e5; margin-top: 0;">Fluresta SMTP Connected!</h2>
+          <p>Hello there,</p>
+          <p>This email confirms that your SMTP configuration has been successfully verified and is fully operational.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr style="background-color: #f8fafc;">
+              <td style="padding: 10px; font-weight: bold; border: 1px solid #e2e8f0; font-size: 13px;">SMTP Host</td>
+              <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 13px; color: #334155;">${host}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; font-weight: bold; border: 1px solid #e2e8f0; font-size: 13px;">Port</td>
+              <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 13px; color: #334155;">${port}</td>
+            </tr>
+            <tr style="background-color: #f8fafc;">
+              <td style="padding: 10px; font-weight: bold; border: 1px solid #e2e8f0; font-size: 13px;">Secure SSL/TLS</td>
+              <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 13px; color: #334155;">${secure ? 'Yes (True)' : 'No (False)'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; font-weight: bold; border: 1px solid #e2e8f0; font-size: 13px;">Sender</td>
+              <td style="padding: 10px; border: 1px solid #e2e8f0; font-size: 13px; color: #334155;">"${senderName}" &lt;${senderEmail}&gt;</td>
+            </tr>
+          </table>
+          <p style="color: #64748b; font-size: 11px; margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 12px; line-height: 1.5;">
+            This email was generated during a real-time SMTP credentials check. If you did not trigger this test, please ignore this message.
+          </p>
+        </div>
+      `
+    });
+
+    return res.json({ success: true, messageId: info.messageId });
+  } catch (err: any) {
+    console.error('[SMTP Test] Sending failed:', err);
+    return res.status(500).json({ error: err.message || 'Unknown SMTP error occurred' });
   }
 });
 

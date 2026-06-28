@@ -87,6 +87,17 @@ service cloud.firestore {
         && (!('password' in data) || data.password is string && data.password.size() <= 100);
     }
 
+    function isValidTimeLog(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.taskId is string && data.taskId.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && (!('userName' in data) || (data.userName is string && data.userName.size() <= 200))
+        && data.startTime is int
+        && data.endTime is int
+        && data.duration is int
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000));
+    }
+
     // --- COLLECTION RULES ---
 
     match /projects/{projectId} {
@@ -102,6 +113,11 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read, delete: if true;
       allow create, update: if isValidId(taskId) && isValidTask(request.resource.data);
+
+      match /time_logs/{logId} {
+        allow read, delete: if true;
+        allow create, update: if isValidId(taskId) && isValidId(logId) && isValidTimeLog(request.resource.data);
+      }
     }
 
     match /messages/{messageId} {

@@ -341,6 +341,94 @@ export default function TeamManagement({
         })}
       </div>
 
+      {/* Visual Permissions Matrix Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+            <ShieldCheck size={18} className="text-indigo-600" />
+            <span>Workspace Permissions Matrix</span>
+          </h3>
+          <p className="text-xs text-slate-400">
+            Define global capabilities and authorization tiers for active roles in the Fluresta platform.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
+                <th className="py-3 px-4">Workspace Capability</th>
+                <th className="py-3 px-4 text-center">Workspace Owner</th>
+                <th className="py-3 px-4 text-center">Workspace Staff</th>
+                <th className="py-3 px-4 text-center">Workspace Guest</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-650 font-medium">
+              <tr>
+                <td className="py-3.5 px-4 font-bold text-slate-700">Recruit & Decommission Team Members</td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-slate-300 text-xs">—</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-slate-300 text-xs">—</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-4 font-bold text-slate-700">Delete Project Records</td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-slate-300 text-xs">—</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-slate-300 text-xs">—</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-4 font-bold text-slate-700">Configure Workflow Automations</td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-slate-300 text-xs">—</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-slate-300 text-xs">—</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-4 font-bold text-slate-700">Create & Modify Sprint Tasks</td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded text-[9px] font-bold">Assigned Only</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-4 font-bold text-slate-700">Post Comments & Message Feed</td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+                <td className="py-3.5 px-4 text-center">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* --- ADD NEW MEMBER MODAL (OWNER ONLY) --- */}
       {showAddModal && isOwner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">

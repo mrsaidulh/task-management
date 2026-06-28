@@ -7,7 +7,9 @@ export const TEAM_MEMBERS: UserProfile[] = [
     role: 'Product Manager',
     email: 'sarah.chen@asana.io',
     avatarColor: 'bg-indigo-600 text-white border-indigo-700',
-    avatarText: 'SC'
+    avatarText: 'SC',
+    isOwner: true,
+    password: 'password123'
   },
   {
     id: 'user_alex',
@@ -15,7 +17,9 @@ export const TEAM_MEMBERS: UserProfile[] = [
     role: 'Frontend Developer',
     email: 'alex.rivera@asana.io',
     avatarColor: 'bg-sky-500 text-white border-sky-600',
-    avatarText: 'AR'
+    avatarText: 'AR',
+    isOwner: false,
+    password: 'password123'
   },
   {
     id: 'user_david',
@@ -23,7 +27,9 @@ export const TEAM_MEMBERS: UserProfile[] = [
     role: 'Backend Engineer',
     email: 'david.kumar@asana.io',
     avatarColor: 'bg-emerald-500 text-white border-emerald-600',
-    avatarText: 'DK'
+    avatarText: 'DK',
+    isOwner: false,
+    password: 'password123'
   },
   {
     id: 'user_elena',
@@ -31,7 +37,9 @@ export const TEAM_MEMBERS: UserProfile[] = [
     role: 'UI/UX Designer',
     email: 'elena.petrova@asana.io',
     avatarColor: 'bg-pink-500 text-white border-pink-600',
-    avatarText: 'EP'
+    avatarText: 'EP',
+    isOwner: false,
+    password: 'password123'
   },
   {
     id: 'user_marcus',
@@ -39,7 +47,9 @@ export const TEAM_MEMBERS: UserProfile[] = [
     role: 'QA Engineer',
     email: 'marcus.vance@asana.io',
     avatarColor: 'bg-amber-500 text-white border-amber-600',
-    avatarText: 'MV'
+    avatarText: 'MV',
+    isOwner: false,
+    password: 'password123'
   }
 ];
 

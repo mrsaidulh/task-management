@@ -14,16 +14,20 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { UserProfile } from '../types';
+
 interface WorkflowAutomationProps {
   rules: WorkflowRule[];
   onCreateRule: (rule: Omit<WorkflowRule, 'id'>) => Promise<void>;
   onToggleRule: (rule: WorkflowRule) => Promise<void>;
+  currentUser: UserProfile;
 }
 
 export default function WorkflowAutomation({
   rules,
   onCreateRule,
-  onToggleRule
+  onToggleRule,
+  currentUser
 }: WorkflowAutomationProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [ruleName, setRuleName] = useState('');
@@ -118,13 +122,20 @@ export default function WorkflowAutomation({
               <p className="text-xs text-slate-400">Trigger actions automatically on task status shifts</p>
             </div>
             
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <Plus size={14} />
-              <span>Create Rule</span>
-            </button>
+            {currentUser.isOwner ? (
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Plus size={14} />
+                <span>Create Rule</span>
+              </button>
+            ) : (
+              <span className="flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 font-bold px-2.5 py-1.5 rounded-lg border border-slate-250">
+                <ShieldCheck size={12} className="text-indigo-600" />
+                <span>Read-Only</span>
+              </span>
+            )}
           </div>
 
           {/* List of rules */}
@@ -153,7 +164,7 @@ export default function WorkflowAutomation({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-21 gap-2 items-center text-[11px] text-slate-500 font-medium pl-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-center text-[11px] text-slate-500 font-medium pl-6">
                       <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-xl">
                         <span className="text-[9px] font-bold text-indigo-600 uppercase block mb-0.5">Trigger Condition</span>
                         <span className="text-slate-700 leading-normal">{getReadableTriggerText(rule.triggerType, rule.triggerValue)}</span>
@@ -171,10 +182,12 @@ export default function WorkflowAutomation({
                   {/* Toggle rule Switch */}
                   <div className="pt-1.5">
                     <button
+                      disabled={!currentUser.isOwner}
                       onClick={() => onToggleRule(rule)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                         rule.active ? 'bg-indigo-600' : 'bg-slate-200'
-                      }`}
+                      } ${!currentUser.isOwner ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      title={!currentUser.isOwner ? 'Only Workspace Owners can toggle rules' : ''}
                     >
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${

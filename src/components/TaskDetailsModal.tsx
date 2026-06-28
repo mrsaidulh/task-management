@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Task, Project, UserProfile, TaskChecklistItem, TaskComment } from '../types';
+import { Task, Project, UserProfile, TaskChecklistItem, TaskComment, TimeLog } from '../types';
 import { TEAM_MEMBERS } from '../data';
 import { subToComments, postComment } from '../lib/services';
+import { subToTimeLogs, createTimeLog, deleteTimeLog } from '../lib/firebase';
 import { 
   X, 
   Trash2, 
@@ -14,7 +15,11 @@ import {
   AlertCircle, 
   Plus, 
   Layers,
-  Lock
+  Lock,
+  Play,
+  Square,
+  Timer,
+  History
 } from 'lucide-react';
 import { getProjectRole } from '../lib/permissions';
 
@@ -63,6 +68,118 @@ export default function TaskDetailsModal({
   const [tagInput, setTagInput] = useState('');
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  // Time Logs state
+  const [timeLogs, setTimeLogs] = useState<TimeLog[]>([]);
+  const [timerActive, setTimerActive] = useState(false);
+  const [timerStart, setTimerStart] = useState<number | null>(null);
+  const [timerDuration, setTimerDuration] = useState(0);
+  const [logDescription, setLogDescription] = useState('');
+
+  // Subscribe to time logs for this task in real-time
+  useEffect(() => {
+    const unsub = subToTimeLogs(task.id, (loadedLogs) => {
+      setTimeLogs(loadedLogs);
+    });
+    return () => unsub();
+  }, [task.id]);
+
+  // Load active timer start from localStorage if it exists
+  useEffect(() => {
+    const savedStart = localStorage.getItem(`timer_start_${task.id}`);
+    if (savedStart) {
+      setTimerStart(Number(savedStart));
+      setTimerActive(true);
+    } else {
+      setTimerStart(null);
+      setTimerActive(false);
+    }
+  }, [task.id]);
+
+  // Tick active timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (timerActive && timerStart) {
+      interval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+        setTimerDuration(elapsed);
+      }, 1000);
+    } else {
+      setTimerDuration(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerActive, timerStart]);
+
+  const startTimer = () => {
+    const now = Date.now();
+    localStorage.setItem(`timer_start_${task.id}`, String(now));
+    setTimerStart(now);
+    setTimerActive(true);
+  };
+
+  const stopTimer = async () => {
+    if (!timerStart) return;
+    const now = Date.now();
+    const durationInSeconds = Math.floor((now - timerStart) / 1000);
+
+    localStorage.removeItem(`timer_start_${task.id}`);
+    setTimerActive(false);
+    setTimerStart(null);
+
+    if (durationInSeconds < 1) {
+      alert("Timer session was too short to log (must be at least 1 second).");
+      setLogDescription('');
+      return;
+    }
+
+    const logEntry = {
+      taskId: task.id,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      startTime: timerStart,
+      endTime: now,
+      duration: durationInSeconds,
+      description: logDescription.trim() || 'Active task focus'
+    };
+
+    try {
+      await createTimeLog(task.id, logEntry);
+      
+      // Update task total time on the backend
+      const newTotal = (task.timeSpent || 0) + durationInSeconds;
+      await onUpdateTask(task, { timeSpent: newTotal });
+    } catch (e) {
+      console.error("Failed to save time log:", e);
+    } finally {
+      setLogDescription('');
+    }
+  };
+
+  const handleDeleteLog = async (logId: string, logDuration: number) => {
+    if (confirm('Are you sure you want to delete this time entry?')) {
+      try {
+        await deleteTimeLog(task.id, logId);
+        const newTotal = Math.max(0, (task.timeSpent || 0) - logDuration);
+        await onUpdateTask(task, { timeSpent: newTotal });
+      } catch (e) {
+        console.error("Failed to delete time log:", e);
+      }
+    }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    
+    const parts = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0 || h > 0) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(' ');
+  };
 
   // Subscribe to comments for this task in real-time
   useEffect(() => {
@@ -362,6 +479,123 @@ export default function TaskDetailsModal({
                 isGuest ? 'cursor-not-allowed opacity-75' : ''
               }`}
             />
+          </div>
+
+          {/* Time Tracking Panel */}
+          <div className="space-y-3 p-4 border border-slate-200 bg-slate-50/50 rounded-2xl">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-extrabold text-slate-500 flex items-center gap-1.5">
+                <Timer size={13} className="text-indigo-600" />
+                <span>Task Time Tracker</span>
+              </h4>
+              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full font-mono">
+                Total: {formatDuration(task.timeSpent || 0)}
+              </span>
+            </div>
+
+            {/* Active timer controls */}
+            {isGuest ? (
+              <div className="text-[11px] text-slate-400 italic">Time tracking is read-only for Guests.</div>
+            ) : (
+              <div className="space-y-2.5">
+                {!timerActive ? (
+                  <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-slate-300" />
+                      No active time log session
+                    </span>
+                    <button
+                      type="button"
+                      onClick={startTimer}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Play size={11} className="fill-white" />
+                      <span>Start Timer</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 p-2.5 bg-rose-50/50 border border-rose-100 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-rose-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        Ticking live focus session...
+                      </span>
+                      <span className="text-sm font-bold font-mono text-rose-600">
+                        {formatDuration(timerDuration)}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={logDescription}
+                        onChange={(e) => setLogDescription(e.target.value)}
+                        placeholder="What are you working on right now?"
+                        className="flex-1 px-2.5 py-1.5 border border-rose-200 bg-white rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:border-rose-400 transition-all font-medium"
+                      />
+                      <button
+                        type="button"
+                        onClick={stopTimer}
+                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                      >
+                        <Square size={11} className="fill-white" />
+                        <span>Stop & Save Log</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Historic time logs list */}
+            {timeLogs.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <History size={10} />
+                  <span>Logged Sessions ({timeLogs.length})</span>
+                </div>
+
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
+                  {timeLogs.map((log) => {
+                    const logUser = activeUsers.find((u) => u.id === log.userId);
+                    return (
+                      <div key={log.id} className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-150 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0 border ${logUser?.avatarColor || 'bg-slate-200'}`}>
+                            {logUser?.avatarText || '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-700 truncate">{logUser?.name || log.userName}</span>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                {new Date(log.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                            <p className="text-slate-500 text-[11px] truncate italic">{log.description}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                            {formatDuration(log.duration)}
+                          </span>
+                          {!isGuest && (currentUser.id === log.userId || isAdmin) && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLog(log.id, log.duration)}
+                              className="text-slate-400 hover:text-rose-600 p-0.5 transition-all cursor-pointer"
+                              title="Delete log entry"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Subtask Action Checklist */}

@@ -35,6 +35,7 @@ export interface Task {
   completedAt?: number;
   dependencies?: string[]; // IDs of tasks that block this task
   order?: number; // Real position coordinate for drag-and-drop hierarchy
+  timeSpent?: number; // Total time spent in seconds
 }
 
 export interface WorkflowRule {
@@ -105,5 +106,27 @@ export interface ProjectTemplate {
   tasks: TemplateTask[];
   isCustom?: boolean; // True if it's created by a user from an existing project
   createdBy?: string;
+}
+
+export interface TimeLog {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  startTime: number;
+  endTime: number;
+  duration: number; // in seconds
+  description: string;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password?: string;
+  senderEmail: string;
+  senderName: string;
+  updatedAt?: number;
 }
 

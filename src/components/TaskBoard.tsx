@@ -9,7 +9,8 @@ import {
   ChevronRight, 
   AlertCircle,
   Lock,
-  GripVertical
+  GripVertical,
+  Clock
 } from 'lucide-react';
 import { getProjectRole } from '../lib/permissions';
 
@@ -216,15 +217,33 @@ function BoardTaskCard({
 
       {/* Footer & Controls */}
       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-        {/* Due Date Indicator */}
-        <div className="flex items-center gap-1">
-          <Calendar size={11} className={`${overdue ? 'text-rose-600' : 'text-slate-400'}`} />
-          <span className={`text-[10px] font-semibold font-mono tracking-tight ${
-            overdue ? 'text-rose-600 font-bold flex items-center gap-0.5' : 'text-slate-400'
-          }`}>
-            {task.dueDate || 'No date'}
-            {overdue && <AlertCircle size={10} className="stroke-[2.5]" />}
-          </span>
+        {/* Due Date Indicator & Time Log Badge */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1">
+            <Calendar size={11} className={`${overdue ? 'text-rose-600' : 'text-slate-400'}`} />
+            <span className={`text-[10px] font-semibold font-mono tracking-tight ${
+              overdue ? 'text-rose-600 font-bold flex items-center gap-0.5' : 'text-slate-400'
+            }`}>
+              {task.dueDate || 'No date'}
+              {overdue && <AlertCircle size={10} className="stroke-[2.5]" />}
+            </span>
+          </div>
+
+          {task.timeSpent ? (
+            <div className="flex items-center gap-1 text-slate-400" title="Total time tracked">
+              <Clock size={10} className="text-slate-400" />
+              <span className="text-[10px] font-semibold font-mono tracking-tight text-slate-500">
+                {(() => {
+                  const h = Math.floor(task.timeSpent / 3600);
+                  const m = Math.floor((task.timeSpent % 3600) / 60);
+                  const s = task.timeSpent % 60;
+                  if (h > 0) return `${h}h ${m}m`;
+                  if (m > 0) return `${m}m`;
+                  return `${s}s`;
+                })()}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {/* Assignee Identity & Shift layout */}

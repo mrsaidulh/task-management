@@ -46,12 +46,13 @@ import { getProjectRole } from './lib/permissions';
 import DashboardOverview from './components/DashboardOverview';
 import TaskBoard from './components/TaskBoard';
 import TaskList from './components/TaskList';
-import TeamManagement from './components/TeamManagement';
+import SystemSettings from './components/SystemSettings';
 import TaskCalendar from './components/TaskCalendar';
 import TaskTimeline from './components/TaskTimeline';
 import WorkflowAutomation from './components/WorkflowAutomation';
 import TeamMessaging from './components/TeamMessaging';
 import TaskDetailsModal from './components/TaskDetailsModal';
+import LoginScreen from './components/LoginScreen';
 import { 
   LayoutDashboard, 
   KanbanSquare, 
@@ -72,7 +73,9 @@ import {
   Layers,
   Users,
   Lock,
-  Search
+  LogIn,
+  Search,
+  Settings
 } from 'lucide-react';
 
 export default function App() {
@@ -94,6 +97,10 @@ export default function App() {
   // Multi-user Profile context
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     try {
+      const savedAuth = typeof window !== 'undefined' ? localStorage.getItem('as_authenticated_user') : null;
+      if (savedAuth) {
+        return JSON.parse(savedAuth);
+      }
       const saved = typeof window !== 'undefined' ? localStorage.getItem('as_active_user') : null;
       if (saved) {
         const parsed = TEAM_MEMBERS.find(m => m.id === saved);
@@ -103,6 +110,17 @@ export default function App() {
       console.warn('localStorage is blocked or unavailable:', e);
     }
     return TEAM_MEMBERS[0]; // defaults to Sarah Chen
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const savedAuth = localStorage.getItem('as_authenticated_user');
+        if (savedAuth) return true;
+      }
+    } catch (e) {
+      console.warn('localStorage is blocked or unavailable:', e);
+    }
+    return false;
   });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -408,6 +426,24 @@ export default function App() {
     );
   }, [tasks, searchQuery]);
 
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen 
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          try {
+            localStorage.setItem('as_authenticated_user', JSON.stringify(user));
+            localStorage.setItem('as_active_user', user.id);
+          } catch (e) {
+            console.warn(e);
+          }
+        }}
+        availableUsers={users.length > 0 ? users : TEAM_MEMBERS}
+      />
+    );
+  }
+
   return (
     <div id="application_viewport_root" className="min-h-screen bg-[#F9FAFB] flex flex-col md:flex-row antialiased font-sans text-slate-800">
       
@@ -528,9 +564,9 @@ export default function App() {
                 : 'hover:bg-slate-50 text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Users size={14} className={activeTab === 'team' ? 'text-indigo-600' : 'text-slate-400'} />
+            <Settings size={14} className={activeTab === 'team' ? 'text-indigo-600' : 'text-slate-400'} />
             <span className="flex items-center gap-1.5 w-full justify-between">
-              <span>Fluresta Team Management</span>
+              <span>System Settings</span>
               {currentUser.isOwner && (
                 <span className="text-[8px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded-full scale-90">Owner</span>
               )}
@@ -631,6 +667,24 @@ export default function App() {
                   )}
                 </button>
               ))}
+              <div className="border-t border-slate-100 mt-1.5 pt-1.5">
+                <button
+                  onClick={() => {
+                    stopUserPresenceHeartbeat(currentUser.id);
+                    setIsAuthenticated(false);
+                    try {
+                      localStorage.removeItem('as_authenticated_user');
+                      localStorage.removeItem('as_active_user');
+                    } catch (e) {
+                      console.warn(e);
+                    }
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 duration-150"
+                >
+                  <LogIn size={11} className="rotate-180 text-rose-500 shrink-0" />
+                  <span>Log Out Session</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -651,7 +705,7 @@ export default function App() {
               </span>
             </div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900 mt-1 uppercase flex items-center gap-2">
-              <span>{activeTab.toUpperCase()} View</span>
+              <span>{activeTab === 'team' ? 'SYSTEM SETTINGS' : `${activeTab.toUpperCase()} View`}</span>
               <span className="text-xs lowercase text-slate-400 font-medium tracking-normal">
                 {activeProject !== 'all' && currentProjectObj?.description}
               </span>
@@ -806,6 +860,7 @@ export default function App() {
               onToggleRule={async (rule) => {
                 await toggleWorkflowRule(rule);
               }}
+              currentUser={currentUser}
             />
           )}
 
@@ -823,7 +878,7 @@ export default function App() {
           )}
 
           {activeTab === 'team' && (
-            <TeamManagement
+            <SystemSettings
               users={users.length > 0 ? users : TEAM_MEMBERS}
               currentUser={currentUser}
               onlineUsers={onlineUsers}

@@ -180,13 +180,26 @@ function SortableTaskRow({
               {task.description}
             </p>
           )}
-          {task.tags.length > 0 && (
-            <div className="flex gap-1 mt-1 flex-wrap">
+          {(task.tags.length > 0 || !!task.timeSpent) && (
+            <div className="flex gap-1 mt-1 flex-wrap items-center">
               {task.tags.map(tag => (
                 <span key={tag} className="text-[8px] font-bold tracking-tight bg-slate-100 text-slate-500 border border-slate-200/50 px-1 rounded-sm">
                   {tag}
                 </span>
               ))}
+              {task.timeSpent ? (
+                <span className="text-[8px] font-bold tracking-tight bg-indigo-50 text-indigo-600 border border-indigo-150/40 px-1.5 py-0.5 rounded-sm flex items-center gap-0.5" title="Time tracked">
+                  <span>⏱️</span>
+                  <span>{(() => {
+                    const h = Math.floor(task.timeSpent / 3600);
+                    const m = Math.floor((task.timeSpent % 3600) / 60);
+                    const s = task.timeSpent % 60;
+                    if (h > 0) return `${h}h ${m}m`;
+                    if (m > 0) return `${m}m`;
+                    return `${s}s`;
+                  })()}</span>
+                </span>
+              ) : null}
             </div>
           )}
         </div>

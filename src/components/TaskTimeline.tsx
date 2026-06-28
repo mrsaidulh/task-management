@@ -178,6 +178,21 @@ export default function TaskTimeline({
                           </div>
                           <span>{assignee ? assignee.name : 'Unassigned'}</span>
                         </div>
+                        {task.timeSpent ? (
+                          <>
+                            <span>•</span>
+                            <span className="font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded font-semibold text-[8px]">
+                              ⏱️ {(() => {
+                                const h = Math.floor(task.timeSpent / 3600);
+                                const m = Math.floor((task.timeSpent % 3600) / 60);
+                                const s = task.timeSpent % 60;
+                                if (h > 0) return `${h}h ${m}m`;
+                                if (m > 0) return `${m}m`;
+                                return `${s}s`;
+                              })()}
+                            </span>
+                          </>
+                        ) : null}
                       </div>
                     </div>
 

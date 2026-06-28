@@ -113,6 +113,22 @@
         "online": { "type": "boolean" }
       },
       "required": ["userId", "lastActive", "online"]
+    },
+    "TimeLog": {
+      "title": "TimeLog",
+      "description": "A time tracking entry for a task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "startTime": { "type": "number" },
+        "endTime": { "type": "number" },
+        "duration": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "taskId", "userId", "startTime", "endTime", "duration"]
     }
   },
   "firestore": {
@@ -147,6 +163,10 @@
     "users": {
       "schema": "UserProfile",
       "description": "CoWork workspace team members and system logins"
+    },
+    "tasks/{taskId}/time_logs/{logId}": {
+      "schema": "TimeLog",
+      "description": "Time logging entries for individual tasks"
     }
   }
 }
