@@ -67,7 +67,7 @@ export default function TaskDetailsModal({
   // New Tag State
   const [tagInput, setTagInput] = useState('');
 
-  const commentsEndRef = useRef<HTMLDivElement>(null);
+  const commentsContainerRef = useRef<HTMLDivElement>(null);
 
   // Time Logs state
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([]);
@@ -191,7 +191,9 @@ export default function TaskDetailsModal({
 
   // Scroll details chat list on receipt of new logs
   useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (commentsContainerRef.current) {
+      commentsContainerRef.current.scrollTop = commentsContainerRef.current.scrollHeight;
+    }
   }, [comments]);
 
   // On-the-fly input helpers
@@ -885,7 +887,7 @@ export default function TaskDetailsModal({
             </h4>
 
             {/* Comments Stream */}
-            <div className="space-y-3.5 max-h-56 overflow-y-auto pr-1 bg-slate-50/20 p-3 rounded-2xl border border-slate-200/50 scrollbar-thin">
+            <div ref={commentsContainerRef} className="space-y-3.5 max-h-56 overflow-y-auto pr-1 bg-slate-50/20 p-3 rounded-2xl border border-slate-200/50 scrollbar-thin">
               {comments.length === 0 ? (
                 <div className="text-center py-6 text-slate-400 text-xs">
                   No comments logged. Post a brief below to start the thread.
@@ -923,7 +925,6 @@ export default function TaskDetailsModal({
                   );
                 })
               )}
-              <div ref={commentsEndRef} />
             </div>
 
             {/* Publish comments form */}
