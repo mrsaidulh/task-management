@@ -710,81 +710,171 @@ export default function TaskDetailsModal({
             )}
           </div>
 
-          {/* Task Dependency Links */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 flex-1">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
-              <Layers size={11} className="text-amber-500" />
-              <span>Blocking Dependencies (Task Blocks)</span>
-            </label>
+          {/* Task Dependency Relationships */}
+          <div className="space-y-4 pt-4 border-t border-slate-200/60">
+            <h4 className="text-xs font-extrabold text-slate-500 flex items-center gap-1.5">
+              <Layers size={13} className="text-indigo-600" />
+              <span>Task Dependency Relationships</span>
+            </h4>
 
-            <div className="space-y-1.5">
-              {(!task.dependencies || task.dependencies.length === 0) ? (
-                <p className="text-xs text-slate-400 italic">No dependencies currently. This task can be scheduled freely.</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {task.dependencies.map(depId => {
-                    const depTask = tasks.find(t => t.id === depId);
-                    if (!depTask) return null;
-                    const isCompleted = depTask.status === 'done';
-                    return (
-                      <div key={depId} className="flex items-center justify-between gap-2 p-2 rounded-xl border border-slate-150 bg-slate-50/50">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
-                          <span className={`text-xs font-semibold truncate ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-700 font-medium'}`}>
-                            {depTask.title}
-                          </span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-sm shrink-0 font-mono tracking-tight ${
-                            isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                          }`}>
-                            {depTask.status.replace('_', ' ').toUpperCase()}
-                          </span>
+            {/* Blocked By (Pre-requisites) */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span>Blocked By (Pre-requisites that must be finished first)</span>
+              </label>
+
+              <div className="space-y-1.5">
+                {(!task.dependencies || task.dependencies.length === 0) ? (
+                  <p className="text-[11px] text-slate-400 italic pl-3">This task is not blocked by any pre-requisites.</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {task.dependencies.map(depId => {
+                      const depTask = tasks.find(t => t.id === depId);
+                      if (!depTask) return null;
+                      const isCompleted = depTask.status === 'done';
+                      return (
+                        <div key={depId} className="flex items-center justify-between gap-2 p-2 rounded-xl border border-slate-150 bg-slate-50/50">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
+                            <span className={`text-xs font-semibold truncate ${isCompleted ? 'text-slate-400 line-through font-normal' : 'text-slate-700 font-medium'}`}>
+                              {depTask.title}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-sm shrink-0 font-mono tracking-tight ${
+                              isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                            }`}>
+                              {depTask.status.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          {!isGuest && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newDeps = (task.dependencies || []).filter(id => id !== depId);
+                                onUpdateTask(task, { dependencies: newDeps });
+                              }}
+                              className="text-slate-400 hover:text-rose-500 text-xs font-bold leading-none p-1 transition-all cursor-pointer"
+                              title="Remove relationship"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
-                        {!isGuest && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newDeps = (task.dependencies || []).filter(id => id !== depId);
-                              onUpdateTask(task, { dependencies: newDeps });
-                            }}
-                            className="text-slate-400 hover:text-rose-500 text-xs font-bold leading-none p-1 transition-all"
-                            title="Remove link"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {!isGuest && (
+                <div className="flex gap-2 max-w-sm pt-0.5">
+                  <select
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      const currentDeps = task.dependencies || [];
+                      if (!currentDeps.includes(val)) {
+                        onUpdateTask(task, { dependencies: [...currentDeps, val] });
+                      }
+                      e.target.value = ''; // Reset select
+                    }}
+                    defaultValue=""
+                    className="bg-white border border-slate-250 rounded-xl text-[11px] px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:border-indigo-500 flex-1"
+                  >
+                    <option value="" disabled>Add Pre-requisite task...</option>
+                    {tasks
+                      .filter(t => t.id !== task.id && t.projectId === task.projectId && !(task.dependencies || []).includes(t.id))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                  </select>
                 </div>
               )}
             </div>
 
-            {!isGuest && (
-              <div className="flex gap-2 max-w-sm pt-1">
-                <select
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (!val) return;
-                    const currentDeps = task.dependencies || [];
-                    if (!currentDeps.includes(val)) {
-                      onUpdateTask(task, { dependencies: [...currentDeps, val] });
-                    }
-                    e.target.value = ''; // Reset select
-                  }}
-                  defaultValue=""
-                  className="bg-white border border-slate-250 rounded-xl text-xs px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:border-indigo-500 flex-1"
-                >
-                  <option value="" disabled>Link blocking task...</option>
-                  {tasks
-                    .filter(t => t.id !== task.id && t.projectId === task.projectId && !(task.dependencies || []).includes(t.id))
-                    .map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))}
-                </select>
+            {/* Blocking (Dependents) */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                <span>Blocking (Other tasks waiting on this task to be completed)</span>
+              </label>
+
+              <div className="space-y-1.5">
+                {(() => {
+                  const dependents = tasks.filter(t => t.dependencies && t.dependencies.includes(task.id));
+                  if (dependents.length === 0) {
+                    return <p className="text-[11px] text-slate-400 italic pl-3">This task is not blocking any other tasks.</p>;
+                  }
+                  return (
+                    <div className="flex flex-col gap-1.5">
+                      {dependents.map(depTask => {
+                        const isCompleted = depTask.status === 'done';
+                        return (
+                          <div key={depTask.id} className="flex items-center justify-between gap-2 p-2 rounded-xl border border-slate-150 bg-slate-50/50">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-400'}`} />
+                              <span className={`text-xs font-semibold truncate ${isCompleted ? 'text-slate-400 line-through font-normal' : 'text-slate-700 font-medium'}`}>
+                                {depTask.title}
+                              </span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-sm shrink-0 font-mono tracking-tight ${
+                                isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
+                              }`}>
+                                {depTask.status.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                            {!isGuest && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newDeps = (depTask.dependencies || []).filter(id => id !== task.id);
+                                  onUpdateTask(depTask, { dependencies: newDeps });
+                                }}
+                                className="text-slate-400 hover:text-rose-500 text-xs font-bold leading-none p-1 transition-all cursor-pointer"
+                                title="Remove relationship"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
-            )}
+
+              {!isGuest && (
+                <div className="flex gap-2 max-w-sm pt-0.5">
+                  <select
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      const targetTask = tasks.find(t => t.id === val);
+                      if (targetTask) {
+                        const targetDeps = targetTask.dependencies || [];
+                        if (!targetDeps.includes(task.id)) {
+                          onUpdateTask(targetTask, { dependencies: [...targetDeps, task.id] });
+                        }
+                      }
+                      e.target.value = ''; // Reset select
+                    }}
+                    defaultValue=""
+                    className="bg-white border border-slate-250 rounded-xl text-[11px] px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:border-indigo-500 flex-1"
+                  >
+                    <option value="" disabled>Add Dependent task...</option>
+                    {tasks
+                      .filter(t => t.id !== task.id && t.projectId === task.projectId && !(t.dependencies || []).includes(task.id))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Integrated Comments Thread */}

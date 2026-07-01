@@ -75,7 +75,8 @@ import {
   Lock,
   LogIn,
   Search,
-  Settings
+  Settings,
+  Bell
 } from 'lucide-react';
 
 export default function App() {
@@ -127,6 +128,7 @@ export default function App() {
   // Inspector & task creation modal state
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [addTaskDefaultStatus, setAddTaskDefaultStatus] = useState<TaskStatus>('todo');
   const [addTaskDefaultDate, setAddTaskDefaultDate] = useState<string>('');
 
@@ -161,6 +163,26 @@ export default function App() {
     });
   }, [customTemplates]);
 
+  const urgentTasks = useMemo(() => {
+    return tasks.filter(t => {
+      if (t.status === 'done') return false;
+      if (!t.dueDate) return false;
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (t.dueDate <= todayStr) return true;
+      
+      const parts = t.dueDate.split('-');
+      if (parts.length !== 3) return false;
+      const yr = parseInt(parts[0], 10);
+      const mo = parseInt(parts[1], 10) - 1;
+      const dy = parseInt(parts[2], 10);
+      
+      const dueTime = new Date(yr, mo, dy, 23, 59, 59).getTime();
+      const nowTime = Date.now();
+      const diffTime = dueTime - nowTime;
+      return diffTime > 0 && diffTime <= 24 * 60 * 60 * 1000;
+    });
+  }, [tasks]);
+
   // Task creation Form state
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
@@ -170,6 +192,7 @@ export default function App() {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskStartDate, setNewTaskStartDate] = useState('');
   const [newTaskTags, setNewTaskTags] = useState('');
+  const [newTaskDependencies, setNewTaskDependencies] = useState<string[]>([]);
 
   // Index DB seeding and initial sync
   useEffect(() => {
@@ -271,6 +294,7 @@ export default function App() {
     setAddTaskDefaultStatus(defaultStatus || 'todo');
     setAddTaskDefaultDate(defaultDate || '');
     setNewTaskDueDate(defaultDate || '');
+    setNewTaskDependencies([]);
     setShowAddTaskModal(true);
   };
 
@@ -294,13 +318,15 @@ export default function App() {
         assigneeId: newTaskAssignee,
         tags: tagsArray,
         checklist: [],
-        projectId: newTaskProjId
+        projectId: newTaskProjId,
+        dependencies: newTaskDependencies
       }, currentUser, rules);
 
       // Reset
       setNewTaskTitle('');
       setNewTaskDesc('');
       setNewTaskTags('');
+      setNewTaskDependencies([]);
       setShowAddTaskModal(false);
     } catch (err) {
       console.error(err);
@@ -737,6 +763,98 @@ export default function App() {
 
           {/* Task creation button context */}
           <div className="flex items-center gap-2">
+            {/* Urgent Alerts Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`p-2 rounded-xl border transition-all duration-150 relative cursor-pointer ${
+                  showNotifications
+                    ? 'bg-indigo-50 border-indigo-250 text-indigo-600 shadow-inner'
+                    : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'
+                }`}
+                title="Urgent Alerts"
+              >
+                <Bell size={15} className={urgentTasks.length > 0 ? "animate-bounce text-amber-500" : ""} />
+                {urgentTasks.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[8px] h-4 w-4 rounded-full flex items-center justify-center border-2 border-white">
+                    {urgentTasks.length}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-2.5 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-45 p-4 space-y-3 text-slate-850 animate-slide-up text-left">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Bell size={14} className="text-indigo-600 shrink-0" />
+                      <span className="font-extrabold text-xs uppercase tracking-wider">Urgent Alerts</span>
+                    </div>
+                    <span className="text-[10px] bg-amber-100 text-amber-850 font-bold px-2 py-0.5 rounded-full font-mono">
+                      {urgentTasks.length} pending
+                    </span>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto space-y-2 scrollbar-thin">
+                    {urgentTasks.length === 0 ? (
+                      <div className="py-6 text-center text-slate-400">
+                        <p className="text-xs italic font-medium">All quiet! No tasks due soon.</p>
+                        <p className="text-[10px] text-slate-350 mt-1">Excellent timeline management!</p>
+                      </div>
+                    ) : (
+                      urgentTasks.map(t => {
+                        const proj = projects.find(p => p.id === t.projectId);
+                        const isOverdue = t.dueDate < new Date().toISOString().split('T')[0];
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => {
+                              setSelectedTask(t);
+                              setShowNotifications(false);
+                            }}
+                            className="p-2.5 rounded-xl border border-slate-150 bg-slate-50/50 hover:bg-indigo-50/40 hover:border-indigo-150 cursor-pointer duration-150 transition-all flex flex-col gap-1.5"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${
+                                isOverdue ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-705'
+                              }`}>
+                                {isOverdue ? 'OVERDUE' : 'DUE SOON'}
+                              </span>
+                              {proj && (
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                  {proj.name}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-semibold text-slate-800 line-clamp-1">
+                              {t.title}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium font-mono mt-0.5">
+                              <span className="flex items-center gap-0.5">
+                                📅 {t.dueDate}
+                              </span>
+                              <span className={`font-bold uppercase ${
+                                t.priority === 'high' ? 'text-rose-600' :
+                                t.priority === 'medium' ? 'text-amber-600' :
+                                'text-slate-500'
+                              }`}>
+                                {t.priority}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {urgentTasks.length > 0 && (
+                    <p className="text-[9px] text-slate-400 italic text-center pt-1 border-t border-slate-100">
+                      💡 Click on alert card to view details & act
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {activeProject !== 'all' && currentProjectObj && getProjectRole(currentProjectObj, currentUser.id) !== 'Guest' && (
               <button
                 onClick={() => {
@@ -978,7 +1096,10 @@ export default function App() {
                   <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Project Alignment</label>
                   <select
                     value={newTaskProjId}
-                    onChange={(e) => setNewTaskProjId(e.target.value)}
+                    onChange={(e) => {
+                      setNewTaskProjId(e.target.value);
+                      setNewTaskDependencies([]);
+                    }}
                     className="w-full px-3 py-1.5 border border-slate-300 bg-white rounded-xl text-xs text-slate-700 font-bold focus:outline-none"
                   >
                     {projects.filter(p => getProjectRole(p, currentUser.id) !== 'Guest').map(p => (
@@ -1027,6 +1148,63 @@ export default function App() {
                   />
                 </div>
 
+              </div>
+
+              {/* Task Dependencies */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                  Task Dependencies (Blocks This Task)
+                </label>
+                {tasks.filter(t => t.projectId === newTaskProjId).length === 0 ? (
+                  <p className="text-xs text-slate-400 italic bg-slate-50 border border-slate-200 rounded-xl p-2">
+                    No other tasks exist in this project yet.
+                  </p>
+                ) : (
+                  <div className="border border-slate-300 rounded-xl max-h-32 overflow-y-auto p-1.5 bg-slate-50/50 space-y-1 scrollbar-thin">
+                    {tasks
+                      .filter(t => t.projectId === newTaskProjId)
+                      .map(t => {
+                        const isChecked = newTaskDependencies.includes(t.id);
+                        return (
+                          <label
+                            key={t.id}
+                            className={`flex items-start gap-2 p-1.5 rounded-lg text-[11px] font-medium cursor-pointer transition-colors ${
+                              isChecked
+                                ? 'bg-indigo-50/70 border border-indigo-150/30 text-indigo-900'
+                                : 'hover:bg-white text-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNewTaskDependencies([...newTaskDependencies, t.id]);
+                                } else {
+                                  setNewTaskDependencies(newTaskDependencies.filter(id => id !== t.id));
+                                }
+                              }}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold truncate">{t.title}</div>
+                              <div className="flex items-center gap-1.5 text-[9px] text-slate-400 uppercase tracking-wider mt-0.5">
+                                <span className={`px-1 rounded-xs text-[8px] font-black ${
+                                  t.priority === 'high' ? 'bg-rose-50 text-rose-700' :
+                                  t.priority === 'medium' ? 'bg-amber-50 text-amber-700' :
+                                  'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {t.priority}
+                                </span>
+                                <span>•</span>
+                                <span>{t.status.replace('_', ' ')}</span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
 
               {/* Tags inline list */}

@@ -23,7 +23,10 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  useDroppable
+  useDroppable,
+  DragStartEvent,
+  DragOverEvent,
+  DragOverlay
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -121,6 +124,26 @@ function BoardTaskCard({
   const totalSubtasks = task.checklist.length;
   const overdue = isTaskOverdue(task);
 
+  const isTaskDueWithin24Hours = (t: Task) => {
+    if (t.status === 'done') return false;
+    if (!t.dueDate) return false;
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (t.dueDate <= todayStr) return true;
+    
+    const parts = t.dueDate.split('-');
+    if (parts.length !== 3) return false;
+    const yr = parseInt(parts[0], 10);
+    const mo = parseInt(parts[1], 10) - 1;
+    const dy = parseInt(parts[2], 10);
+    
+    const dueTime = new Date(yr, mo, dy, 23, 59, 59).getTime();
+    const nowTime = Date.now();
+    const diffTime = dueTime - nowTime;
+    return diffTime > 0 && diffTime <= 24 * 60 * 60 * 1000;
+  };
+
+  const dueSoon = isTaskDueWithin24Hours(task);
+
   const unmetDeps = (task.dependencies || [])
     .map(depId => tasks.find(t => t.id === depId))
     .filter((depTask): depTask is Task => !!depTask && depTask.status !== 'done');
@@ -130,23 +153,32 @@ function BoardTaskCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border p-4 rounded-xl cursor-default duration-150 transition-all space-y-3.5 select-none relative group ${
-        isDragging ? 'border-dashed border-indigo-400 shadow-md ring-2 ring-indigo-500/5' : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
+      className={`border p-4 rounded-xl cursor-default duration-150 transition-all space-y-3.5 select-none relative group ${
+        isDragging 
+          ? 'bg-white border-dashed border-indigo-400 shadow-md ring-2 ring-indigo-500/5' 
+          : dueSoon
+            ? 'bg-amber-50/20 border-amber-300 hover:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.06)] ring-1 ring-amber-400/30'
+            : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
       }`}
       onClick={() => onOpenTaskDetails(task)}
     >
       {/* Visual Header */}
       <div className="flex items-center justify-between gap-1.5 md:min-h-[20px]">
-        {project ? (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={`w-2 h-2 rounded-full bg-gradient-to-r ${project.color}`} />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
-              {project.name}
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {project && (
+            <>
+              <span className={`w-2 h-2 rounded-full bg-gradient-to-r ${project.color}`} />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
+                {project.name}
+              </span>
+            </>
+          )}
+          {dueSoon && (
+            <span className="shrink-0 flex items-center gap-0.5 text-[8px] font-black uppercase bg-amber-500 text-white px-1.5 py-0.5 rounded-md tracking-wider animate-pulse border border-amber-600/20 shadow-xs">
+              ⏳ DUE SOON
             </span>
-          </div>
-        ) : (
-          <div />
-        )}
+          )}
+        </div>
         
         {/* Grip Handle & Guest Locked view */}
         {!isTaskGuest ? (
@@ -220,12 +252,20 @@ function BoardTaskCard({
         {/* Due Date Indicator & Time Log Badge */}
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1">
-            <Calendar size={11} className={`${overdue ? 'text-rose-600' : 'text-slate-400'}`} />
+            <Calendar size={11} className={`${overdue ? 'text-rose-600' : dueSoon ? 'text-amber-600' : 'text-slate-400'}`} />
             <span className={`text-[10px] font-semibold font-mono tracking-tight ${
-              overdue ? 'text-rose-600 font-bold flex items-center gap-0.5' : 'text-slate-400'
+              overdue 
+                ? 'text-rose-600 font-bold flex items-center gap-0.5' 
+                : dueSoon 
+                  ? 'text-amber-700 font-bold flex items-center gap-0.5' 
+                  : 'text-slate-400'
             }`}>
               {task.dueDate || 'No date'}
-              {overdue && <AlertCircle size={10} className="stroke-[2.5]" />}
+              {overdue ? (
+                <AlertCircle size={10} className="stroke-[2.5]" />
+              ) : dueSoon ? (
+                <Clock size={10} className="text-amber-500 animate-pulse" />
+              ) : null}
             </span>
           </div>
 
@@ -291,6 +331,15 @@ export default function TaskBoard({
   onReorderTask,
   currentUser
 }: TaskBoardProps) {
+  const [localTasks, setLocalTasks] = React.useState<Task[]>(tasks);
+  const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!activeDragId) {
+      setLocalTasks(tasks);
+    }
+  }, [tasks, activeDragId]);
+
   // Configured sensors: drag starts only after a slight move, avoiding hijacking component click interactions
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -305,9 +354,9 @@ export default function TaskBoard({
 
   // Filter task pool
   const filteredTasks = useMemo(() => {
-    if (activeProject === 'all') return tasks;
-    return tasks.filter(t => t.projectId === activeProject);
-  }, [tasks, activeProject]);
+    if (activeProject === 'all') return localTasks;
+    return localTasks.filter(t => t.projectId === activeProject);
+  }, [localTasks, activeProject]);
 
   const activeProjObj = useMemo(() => {
     return projects.find(p => p.id === activeProject);
@@ -367,15 +416,21 @@ export default function TaskBoard({
     return task.dueDate < todayStr;
   };
 
-  // Drag and drop event handle callback
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // Drag and drop event handle callbacks
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
 
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    const activeTask = tasks.find(t => t.id === activeId);
+    if (activeId === overId) return;
+
+    const activeTask = localTasks.find(t => t.id === activeId);
     if (!activeTask) return;
 
     // Check if dragging account is guest role for this task's project
@@ -387,13 +442,13 @@ export default function TaskBoard({
     if (['todo', 'in_progress', 'review', 'done'].includes(overId)) {
       targetStatus = overId as TaskStatus;
     } else {
-      const overTask = tasks.find(t => t.id === overId);
+      const overTask = localTasks.find(t => t.id === overId);
       if (!overTask) return;
       targetStatus = overTask.status;
     }
 
     // Filter non-dragged items currently inside target column, sorted by order index
-    const targetColumnTasks = tasks
+    const targetColumnTasks = localTasks
       .filter(t => t.status === targetStatus && t.id !== activeId && (activeProject === 'all' || t.projectId === activeProject))
       .sort((a, b) => getTaskOrderValue(a) - getTaskOrderValue(b));
 
@@ -432,11 +487,53 @@ export default function TaskBoard({
       }
     }
 
-    // Fire callback persistence event
-    if (onReorderTask) {
-      await onReorderTask(activeTask, { status: targetStatus, order: newOrder });
-    } else {
-      onMoveTask(activeTask, targetStatus);
+    // Update local state during drag-over if status or order actually changes
+    if (activeTask.status !== targetStatus || Math.abs(getTaskOrderValue(activeTask) - newOrder) > 0.01) {
+      setLocalTasks(prev => prev.map(t => {
+        if (t.id === activeId) {
+          return { ...t, status: targetStatus, order: newOrder };
+        }
+        return t;
+      }));
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = event;
+    if (!over) {
+      setLocalTasks(tasks);
+      return;
+    }
+
+    const activeId = active.id as string;
+    const updatedActiveTask = localTasks.find(t => t.id === activeId);
+    const originalActiveTask = tasks.find(t => t.id === activeId);
+
+    if (!updatedActiveTask || !originalActiveTask) {
+      setLocalTasks(tasks);
+      return;
+    }
+
+    // Check if dragging account is guest role for this task's project
+    const project = projects.find(p => p.id === originalActiveTask.projectId);
+    if (getProjectRole(project, currentUser.id) === 'Guest') {
+      setLocalTasks(tasks);
+      return;
+    }
+
+    const targetStatus = updatedActiveTask.status;
+    const newOrder = getTaskOrderValue(updatedActiveTask);
+
+    const statusChanged = originalActiveTask.status !== targetStatus;
+    const orderChanged = getTaskOrderValue(originalActiveTask) !== newOrder;
+
+    if (statusChanged || orderChanged) {
+      if (onReorderTask) {
+        await onReorderTask(originalActiveTask, { status: targetStatus, order: newOrder });
+      } else {
+        onMoveTask(originalActiveTask, targetStatus);
+      }
     }
   };
 
@@ -444,6 +541,8 @@ export default function TaskBoard({
     <DndContext 
       sensors={sensors} 
       collisionDetection={closestCorners} 
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <div id="k_board_container" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
@@ -520,6 +619,32 @@ export default function TaskBoard({
           );
         })}
       </div>
+
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? (
+          (() => {
+            const task = localTasks.find(t => t.id === activeDragId);
+            if (!task) return null;
+            const project = projects.find(p => p.id === task.projectId);
+            const isTaskGuest = getProjectRole(project, currentUser.id) === 'Guest';
+            return (
+              <div className="transform rotate-2 scale-[1.02] shadow-2xl opacity-90 cursor-grabbing pointer-events-none select-none w-[280px] sm:w-[310px]">
+                <BoardTaskCard
+                  task={task}
+                  projects={projects}
+                  tasks={tasks}
+                  onOpenTaskDetails={() => {}}
+                  isTaskOverdue={isTaskOverdue}
+                  currentUser={currentUser}
+                  isTaskGuest={isTaskGuest}
+                  shiftTask={() => {}}
+                  columnId={task.status}
+                />
+              </div>
+            );
+          })()
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

@@ -7,7 +7,8 @@ import {
   Calendar, 
   Plus,
   AlertTriangle,
-  GripVertical
+  GripVertical,
+  Clock
 } from 'lucide-react';
 import { getProjectRole } from '../lib/permissions';
 
@@ -130,13 +131,37 @@ function SortableTaskRow({
   const subCompleted = task.checklist.filter(c => c.completed).length;
   const subTotal = task.checklist.length;
 
+  const isTaskDueWithin24Hours = (t: Task) => {
+    if (t.status === 'done') return false;
+    if (!t.dueDate) return false;
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (t.dueDate <= todayStr) return true;
+    
+    const parts = t.dueDate.split('-');
+    if (parts.length !== 3) return false;
+    const yr = parseInt(parts[0], 10);
+    const mo = parseInt(parts[1], 10) - 1;
+    const dy = parseInt(parts[2], 10);
+    
+    const dueTime = new Date(yr, mo, dy, 23, 59, 59).getTime();
+    const nowTime = Date.now();
+    const diffTime = dueTime - nowTime;
+    return diffTime > 0 && diffTime <= 24 * 60 * 60 * 1000;
+  };
+
+  const dueSoon = isTaskDueWithin24Hours(task);
+
   return (
     <div 
       ref={setNodeRef}
       style={style}
       onClick={() => onOpenTaskDetails(task)}
       className={`grid grid-cols-12 p-3 font-medium text-slate-800 text-xs items-center cursor-pointer duration-150 transition-colors border-b border-slate-100 ${
-        isDragging ? 'bg-indigo-50/40 border-dashed border-indigo-300' : 'bg-white hover:bg-slate-50/70'
+        isDragging 
+          ? 'bg-indigo-50/40 border-dashed border-indigo-300' 
+          : dueSoon
+            ? 'bg-amber-50/15 hover:bg-amber-50/35 border-l-4 border-l-amber-500'
+            : 'bg-white hover:bg-slate-50/70'
       }`}
     >
       {/* Title & mark complete with grip handle */}
@@ -225,11 +250,22 @@ function SortableTaskRow({
           <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border font-mono text-[10px] ${
             overdue 
               ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold' 
-              : 'text-slate-500 border-transparent bg-transparent'
+              : dueSoon
+                ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold'
+                : 'text-slate-500 border-transparent bg-transparent'
           }`}>
-            <Calendar size={11} className={overdue ? 'text-rose-600' : 'text-slate-400'} />
-            <span>{task.dueDate}</span>
-            {overdue && <AlertTriangle size={11} className="stroke-[2.5]" />}
+            <Calendar size={11} className={overdue ? 'text-rose-600' : dueSoon ? 'text-amber-600' : 'text-slate-400'} />
+            <span className="flex items-center gap-1">
+              <span>{task.dueDate}</span>
+              {dueSoon && !overdue && (
+                <span className="text-[8px] bg-amber-500 text-white font-black px-1 py-0.2 rounded scale-90">URGENT</span>
+              )}
+            </span>
+            {overdue ? (
+              <AlertTriangle size={11} className="stroke-[2.5]" />
+            ) : dueSoon ? (
+              <Clock size={11} className="text-amber-500 animate-pulse" />
+            ) : null}
           </div>
         ) : (
           <span className="text-slate-400 text-[10px]">—</span>
