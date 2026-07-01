@@ -105,6 +105,30 @@ let mem_smtpConfig = {
   updatedAt: Date.now()
 };
 
+let mem_rolePermissions: any = {
+  owner: {
+    recruitMembers: true,
+    deleteProjects: true,
+    configureWorkflows: true,
+    createTasks: 'yes',
+    postComments: true
+  },
+  staff: {
+    recruitMembers: false,
+    deleteProjects: false,
+    configureWorkflows: false,
+    createTasks: 'yes',
+    postComments: true
+  },
+  guest: {
+    recruitMembers: false,
+    deleteProjects: false,
+    configureWorkflows: false,
+    createTasks: 'assigned',
+    postComments: true
+  }
+};
+
 // --- Local JSON File Persistence Fallback Helper ---
 const BACKUP_FILE_PATH = path.join(process.cwd(), 'db-fallback.json');
 
@@ -120,6 +144,7 @@ function saveLocalFallback() {
       mem_messages,
       mem_templates,
       mem_smtpConfig,
+      mem_rolePermissions,
     };
     fs.writeFileSync(BACKUP_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
     console.log('[Fallback Storage] Saved current work state successfully to local file.');
@@ -148,6 +173,7 @@ function loadLocalFallback() {
       if (data.mem_messages) mem_messages = data.mem_messages;
       if (data.mem_templates) mem_templates = data.mem_templates;
       if (data.mem_smtpConfig) mem_smtpConfig = data.mem_smtpConfig;
+      if (data.mem_rolePermissions) mem_rolePermissions = data.mem_rolePermissions;
       console.log('[Fallback Storage] Loaded existing work items from local db-fallback.json successfully.');
     } else {
       console.log('[Fallback Storage] No previous local backup file found. Initializing with default seed values.');
@@ -377,6 +403,18 @@ async function runMigrations() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
+  // 11. Role Permissions Table
+  await mysqlPool.query(`
+    CREATE TABLE IF NOT EXISTS rolePermissions (
+      roleName VARCHAR(50) PRIMARY KEY,
+      recruitMembers BOOLEAN DEFAULT FALSE,
+      deleteProjects BOOLEAN DEFAULT FALSE,
+      configureWorkflows BOOLEAN DEFAULT FALSE,
+      createTasks VARCHAR(50) DEFAULT 'no',
+      postComments BOOLEAN DEFAULT FALSE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
   // Seeding initial records if empty
   await seedStaticDataIfEmpty();
 }
@@ -470,6 +508,23 @@ async function seedStaticDataIfEmpty() {
         'INSERT INTO smtpConfig (id, host, port, secure, username, password, senderEmail, senderName, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         ['default', 'smtp.mailtrap.io', 2525, 0, 'smtp_username_placeholder', 'smtp_password_placeholder', 'noreply@fluresta.com', 'Fluresta Worksuite', Date.now()]
       );
+    }
+
+    // Audit Role Permissions Config
+    const [permRows]: any = await mysqlPool.query('SELECT COUNT(*) as count FROM rolePermissions');
+    if (permRows[0].count === 0) {
+      console.log('[Schema Seed] Seeding default Role Permissions matrix...');
+      const defaultPerms = [
+        { roleName: 'owner', recruitMembers: 1, deleteProjects: 1, configureWorkflows: 1, createTasks: 'yes', postComments: 1 },
+        { roleName: 'staff', recruitMembers: 0, deleteProjects: 0, configureWorkflows: 0, createTasks: 'yes', postComments: 1 },
+        { roleName: 'guest', recruitMembers: 0, deleteProjects: 0, configureWorkflows: 0, createTasks: 'assigned', postComments: 1 }
+      ];
+      for (const p of defaultPerms) {
+        await mysqlPool.query(
+          'INSERT INTO rolePermissions (roleName, recruitMembers, deleteProjects, configureWorkflows, createTasks, postComments) VALUES (?, ?, ?, ?, ?, ?)',
+          [p.roleName, p.recruitMembers, p.deleteProjects, p.configureWorkflows, p.createTasks, p.postComments]
+        );
+      }
     }
 
     console.log('[Schema Seed] MySQL schema check complete.');
@@ -1251,6 +1306,64 @@ app.post('/api/settings/smtp/test', async (req, res) => {
   } catch (err: any) {
     console.error('[SMTP Test] Sending failed:', err);
     return res.status(500).json({ error: err.message || 'Unknown SMTP error occurred' });
+  }
+});
+
+
+// --- 11. ROLE PERMISSIONS SETTINGS ---
+app.get('/api/settings/permissions', async (req, res) => {
+  if (useMySQL && mysqlPool) {
+    try {
+      const [rows]: any = await mysqlPool.query('SELECT * FROM rolePermissions');
+      const perms: any = {};
+      rows.forEach((r: any) => {
+        perms[r.roleName] = {
+          recruitMembers: !!r.recruitMembers,
+          deleteProjects: !!r.deleteProjects,
+          configureWorkflows: !!r.configureWorkflows,
+          createTasks: r.createTasks,
+          postComments: !!r.postComments
+        };
+      });
+      // Make sure all 3 are present, else fallback
+      if (!perms.owner) perms.owner = mem_rolePermissions.owner;
+      if (!perms.staff) perms.staff = mem_rolePermissions.staff;
+      if (!perms.guest) perms.guest = mem_rolePermissions.guest;
+      return res.json(perms);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else {
+    return res.json(mem_rolePermissions);
+  }
+});
+
+app.post('/api/settings/permissions', async (req, res) => {
+  const { perms } = req.body;
+  if (!perms) return res.status(400).json({ error: 'permissions map is required' });
+
+  if (useMySQL && mysqlPool) {
+    try {
+      for (const [roleName, p] of Object.entries(perms) as any) {
+        await mysqlPool.query(
+          `INSERT INTO rolePermissions (roleName, recruitMembers, deleteProjects, configureWorkflows, createTasks, postComments)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+           recruitMembers = ?, deleteProjects = ?, configureWorkflows = ?, createTasks = ?, postComments = ?`,
+          [
+            roleName, p.recruitMembers ? 1 : 0, p.deleteProjects ? 1 : 0, p.configureWorkflows ? 1 : 0, p.createTasks, p.postComments ? 1 : 0,
+            p.recruitMembers ? 1 : 0, p.deleteProjects ? 1 : 0, p.configureWorkflows ? 1 : 0, p.createTasks, p.postComments ? 1 : 0
+          ]
+        );
+      }
+      return res.json({ success: true, perms });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else {
+    mem_rolePermissions = perms;
+    saveLocalFallback();
+    return res.json({ success: true, perms: mem_rolePermissions });
   }
 });
 

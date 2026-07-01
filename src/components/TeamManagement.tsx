@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { 
   Users, 
@@ -16,7 +16,13 @@ import {
   X,
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Search,
+  Clock,
+  Activity,
+  Filter,
+  CheckCircle2,
+  ChevronDown
 } from 'lucide-react';
 
 interface TeamManagementProps {
@@ -51,6 +57,83 @@ export default function TeamManagement({
   onLoginAsUser
 }: TeamManagementProps) {
   const isOwner = !!currentUser.isOwner;
+
+  const [teamSubTab, setTeamSubTab] = useState<'members' | 'activity'>('members');
+  
+  // Dynamic permissions state
+  const [permissions, setPermissions] = useState<any>({
+    owner: { recruitMembers: true, deleteProjects: true, configureWorkflows: true, createTasks: 'yes', postComments: true },
+    staff: { recruitMembers: false, deleteProjects: false, configureWorkflows: false, createTasks: 'yes', postComments: true },
+    guest: { recruitMembers: false, deleteProjects: false, configureWorkflows: false, createTasks: 'assigned', postComments: true }
+  });
+
+  // Activity logs state
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityUserFilter, setActivityUserFilter] = useState('all');
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+
+  // Fetch permissions on mount
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const res = await fetch('/api/settings/permissions');
+        if (res.ok) {
+          const data = await res.json();
+          setPermissions(data);
+        }
+      } catch (err) {
+        console.error('Failed to load permissions:', err);
+      }
+    };
+    fetchPermissions();
+  }, []);
+
+  // Fetch activity logs when switching to the activity tab
+  useEffect(() => {
+    if (teamSubTab === 'activity') {
+      const fetchLogs = async () => {
+        setLoadingLogs(true);
+        try {
+          const res = await fetch('/api/activity-logs');
+          if (res.ok) {
+            const data = await res.json();
+            setActivityLogs(data);
+          }
+        } catch (err) {
+          console.error('Failed to load activity logs:', err);
+        } finally {
+          setLoadingLogs(false);
+        }
+      };
+      fetchLogs();
+    }
+  }, [teamSubTab]);
+
+  const handleTogglePermission = async (role: 'owner' | 'staff' | 'guest', field: string, value: any) => {
+    const updated = {
+      ...permissions,
+      [role]: {
+        ...permissions[role],
+        [field]: value
+      }
+    };
+    setPermissions(updated);
+    try {
+      const res = await fetch('/api/settings/permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ perms: updated })
+      });
+      if (res.ok) {
+        setSaveSuccessMsg('Permissions Matrix updated and synced successfully!');
+        setTimeout(() => setSaveSuccessMsg(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to update permissions:', err);
+    }
+  };
 
   // Modals / forms state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -202,10 +285,10 @@ export default function TeamManagement({
         <div>
           <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
             <Users className="text-indigo-600 shrink-0" size={22} />
-            <span>Workspace Team Management</span>
+            <span>Workspace Team & System Management</span>
           </h2>
           <p className="text-xs text-slate-500">
-            {isOwner ? 'You are acting as an Owner. You have administrative access to recruit members, set passcodes, and adjust roles.' : 'View team credentials, membership job roles, and login to your respective active account profiles.'}
+            {isOwner ? 'You are acting as an Owner & Admin. You have administrative access to recruit members, set passcodes, adjust role permissions, and monitor active user workloads.' : 'View team credentials, membership job roles, and login to your respective active account profiles.'}
           </p>
         </div>
         
@@ -220,214 +303,575 @@ export default function TeamManagement({
         )}
       </div>
 
-      {/* Team Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {users.map((member) => {
-          const isOnline = !!onlineUsers[member.id];
-          const isMe = member.id === currentUser.id;
-          const hasPin = !!member.password;
+      {/* Admin Tab Switcher */}
+      {isOwner && (
+        <div className="flex border-b border-slate-200 gap-2">
+          <button
+            onClick={() => setTeamSubTab('members')}
+            className={`px-5 py-3 text-xs font-bold border-b-2 transition duration-150 flex items-center gap-2 ${
+              teamSubTab === 'members'
+                ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users size={14} />
+            <span>Team Members & Permissions Matrix</span>
+          </button>
+          <button
+            onClick={() => setTeamSubTab('activity')}
+            className={`px-5 py-3 text-xs font-bold border-b-2 transition duration-150 flex items-center gap-2 ${
+              teamSubTab === 'activity'
+                ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Activity size={14} />
+            <span>Admin User Activity Monitor</span>
+          </button>
+        </div>
+      )}
 
-          return (
-            <div 
-              key={member.id} 
-              className={`bg-white rounded-2xl border p-5 shadow-sm space-y-4 duration-150 transition-all flex flex-col justify-between ${
-                isMe ? 'border-indigo-600 ring-2 ring-indigo-50 bg-indigo-50/5' : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="space-y-3">
-                
-                {/* User Badges */}
-                <div className="flex items-center justify-between">
-                  {/* Presence indicator */}
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ring-2 ring-white shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                    <span className="text-[10px] text-slate-400 capitalize font-bold tracking-wider">
-                      {isOnline ? 'Active Online' : 'Offline'}
-                    </span>
-                  </div>
+      {teamSubTab === 'members' && (
+        <>
+          {/* Team Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {users.map((member) => {
+              const isOnline = !!onlineUsers[member.id];
+              const isMe = member.id === currentUser.id;
+              const hasPin = !!member.password;
 
-                  {/* Role and Identity marker */}
-                  <div className="flex items-center gap-1.5">
-                    {member.isOwner ? (
-                      <span className="flex items-center gap-1 text-[9px] font-black uppercase text-indigo-700 bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md">
-                        <Shield size={10} />
-                        <span>Owner</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                        <span>Staff</span>
-                      </span>
-                    )}
+              return (
+                <div 
+                  key={member.id} 
+                  className={`bg-white rounded-2xl border p-5 shadow-sm space-y-4 duration-150 transition-all flex flex-col justify-between ${
+                    isMe ? 'border-indigo-600 ring-2 ring-indigo-50 bg-indigo-50/5' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    
+                    {/* User Badges */}
+                    <div className="flex items-center justify-between">
+                      {/* Presence indicator */}
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ring-2 ring-white shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                        <span className="text-[10px] text-slate-400 capitalize font-bold tracking-wider">
+                          {isOnline ? 'Active Online' : 'Offline'}
+                        </span>
+                      </div>
 
-                    {isMe && (
-                      <span className="text-[9px] font-extrabold uppercase text-emerald-705 bg-emerald-100 border border-emerald-250 px-2 py-0.5 rounded-md">
-                        Logged In
-                      </span>
-                    )}
-                  </div>
-                </div>
+                      {/* Role and Identity marker */}
+                      <div className="flex items-center gap-1.5">
+                        {member.isOwner ? (
+                          <span className="flex items-center gap-1 text-[9px] font-black uppercase text-indigo-700 bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md">
+                            <Shield size={10} />
+                            <span>Owner</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                            <span>Staff</span>
+                          </span>
+                        )}
 
-                {/* Identity Core */}
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border tracking-wider shrink-0 shadow-xs ${member.avatarColor}`}>
-                    {member.avatarText}
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-black text-slate-800 leading-snug truncate">{member.name}</h3>
-                    <p className="text-xs text-slate-500 leading-none truncate font-semibold mb-1">{member.role}</p>
-                    <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-                      <Mail size={10} className="shrink-0" />
-                      <span className="truncate">{member.email}</span>
+                        {isMe && (
+                          <span className="text-[9px] font-extrabold uppercase text-emerald-705 bg-emerald-100 border border-emerald-250 px-2 py-0.5 rounded-md">
+                            Logged In
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Identity Core */}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border tracking-wider shrink-0 shadow-xs ${member.avatarColor}`}>
+                        {member.avatarText}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-black text-slate-800 leading-snug truncate">{member.name}</h3>
+                        <p className="text-xs text-slate-500 leading-none truncate font-semibold mb-1">{member.role}</p>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                          <Mail size={10} className="shrink-0" />
+                          <span className="truncate">{member.email}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Security PIN Indicator & Actions */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                      {hasPin ? (
+                        <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-150 font-bold" title="PIN Protected Login">
+                          <Lock size={10} />
+                          <span>PIN Protected</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 font-semibold" title="Unprotected Profile Access">
+                          <Unlock size={10} />
+                          <span>Open Profile</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {/* Delete Button (Owner block, cannot delete self or other owners if they aren't the primary, but here Owner can manage any team member) */}
+                      {isOwner && !isMe && (
+                        <button
+                          onClick={() => handleDelete(member.id, member.name)}
+                          className="p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-405 hover:text-rose-600 rounded-lg border border-slate-200 hover:border-rose-100 duration-150"
+                          title="Decommission Team Member"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+
+                      {/* Edit Profile Button (Owner block, or editable if they are themselves) */}
+                      {(isOwner || isMe) && (
+                        <button
+                          onClick={() => handleOpenEdit(member)}
+                          className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 duration-150"
+                          title="Configure Profile"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      )}
+
+                      {/* Switch/Login Button */}
+                      {!isMe && (
+                        <button
+                          onClick={() => handleLoginClick(member)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-80 bg-slate-100 hover:bg-indigo-600 text-slate-700 hover:text-white border border-slate-200 hover:border-indigo-600 rounded-xl text-[11px] font-black duration-150 shadow-xs"
+                          title="Authenticate Login"
+                        >
+                          <LogIn size={11} />
+                          <span>Login</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
+              );
+            })}
+          </div>
+
+          {/* Dynamic Permissions Matrix Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-indigo-600" />
+                  <span>Workspace Permissions Matrix</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {isOwner 
+                    ? 'Super Users / Administrators can assign and toggle workspace permissions instantly for each role.' 
+                    : 'Define global capabilities and authorization tiers for active roles in the Fluresta platform.'}
+                </p>
               </div>
 
-              {/* Security PIN Indicator & Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                  {hasPin ? (
-                    <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-150 font-bold" title="PIN Protected Login">
-                      <Lock size={10} />
-                      <span>PIN Protected</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 font-semibold" title="Unprotected Profile Access">
-                      <Unlock size={10} />
-                      <span>Open Profile</span>
-                    </span>
-                  )}
+              {saveSuccessMsg && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 border border-emerald-150 px-3 py-1.5 rounded-xl font-bold animate-fade-in shrink-0">
+                  <CheckCircle2 size={14} />
+                  <span>{saveSuccessMsg}</span>
                 </div>
-
-                <div className="flex items-center gap-1.5">
-                  {/* Delete Button (Owner block, cannot delete self or other owners if they aren't the primary, but here Owner can manage any team member) */}
-                  {isOwner && !isMe && (
-                    <button
-                      onClick={() => handleDelete(member.id, member.name)}
-                      className="p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-405 hover:text-rose-600 rounded-lg border border-slate-200 hover:border-rose-100 duration-150"
-                      title="Decommission Team Member"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-
-                  {/* Edit Profile Button (Owner block, or editable if they are themselves) */}
-                  {(isOwner || isMe) && (
-                    <button
-                      onClick={() => handleOpenEdit(member)}
-                      className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 duration-150"
-                      title="Configure Profile"
-                    >
-                      <Edit2 size={13} />
-                    </button>
-                  )}
-
-                  {/* Switch/Login Button */}
-                  {!isMe && (
-                    <button
-                      onClick={() => handleLoginClick(member)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-slate-80 bg-slate-100 hover:bg-indigo-600 text-slate-700 hover:text-white border border-slate-200 hover:border-indigo-600 rounded-xl text-[11px] font-black duration-150 shadow-xs"
-                      title="Authenticate Login"
-                    >
-                      <LogIn size={11} />
-                      <span>Login</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
+              )}
             </div>
-          );
-        })}
-      </div>
 
-      {/* Visual Permissions Matrix Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <div>
-          <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            <ShieldCheck size={18} className="text-indigo-600" />
-            <span>Workspace Permissions Matrix</span>
-          </h3>
-          <p className="text-xs text-slate-400">
-            Define global capabilities and authorization tiers for active roles in the Fluresta platform.
-          </p>
-        </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-150 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-4">Workspace Capability</th>
+                    <th className="py-3 px-4 text-center w-40">Workspace Owner</th>
+                    <th className="py-3 px-4 text-center w-40">Workspace Staff</th>
+                    <th className="py-3 px-4 text-center w-40">Workspace Guest</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-650 font-medium">
+                  <tr>
+                    <td className="py-3.5 px-4 font-bold text-slate-700">Recruit & Decommission Team Members</td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.owner?.recruitMembers}
+                          onChange={(e) => handleTogglePermission('owner', 'recruitMembers', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.owner?.recruitMembers ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.staff?.recruitMembers}
+                          onChange={(e) => handleTogglePermission('staff', 'recruitMembers', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.staff?.recruitMembers ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.guest?.recruitMembers}
+                          onChange={(e) => handleTogglePermission('guest', 'recruitMembers', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.guest?.recruitMembers ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                  </tr>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-100 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
-                <th className="py-3 px-4">Workspace Capability</th>
-                <th className="py-3 px-4 text-center">Workspace Owner</th>
-                <th className="py-3 px-4 text-center">Workspace Staff</th>
-                <th className="py-3 px-4 text-center">Workspace Guest</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-650 font-medium">
-              <tr>
-                <td className="py-3.5 px-4 font-bold text-slate-700">Recruit & Decommission Team Members</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-slate-300 text-xs">—</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-slate-300 text-xs">—</span>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3.5 px-4 font-bold text-slate-700">Delete Project Records</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-slate-300 text-xs">—</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-slate-300 text-xs">—</span>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3.5 px-4 font-bold text-slate-700">Configure Workflow Automations</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-slate-300 text-xs">—</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-slate-300 text-xs">—</span>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3.5 px-4 font-bold text-slate-700">Create & Modify Sprint Tasks</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded text-[9px] font-bold">Assigned Only</span>
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3.5 px-4 font-bold text-slate-700">Post Comments & Message Feed</td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <tr>
+                    <td className="py-3.5 px-4 font-bold text-slate-700">Delete Project Records</td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.owner?.deleteProjects}
+                          onChange={(e) => handleTogglePermission('owner', 'deleteProjects', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.owner?.deleteProjects ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.staff?.deleteProjects}
+                          onChange={(e) => handleTogglePermission('staff', 'deleteProjects', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.staff?.deleteProjects ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.guest?.deleteProjects}
+                          onChange={(e) => handleTogglePermission('guest', 'deleteProjects', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.guest?.deleteProjects ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-3.5 px-4 font-bold text-slate-700">Configure Workflow Automations</td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.owner?.configureWorkflows}
+                          onChange={(e) => handleTogglePermission('owner', 'configureWorkflows', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.owner?.configureWorkflows ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.staff?.configureWorkflows}
+                          onChange={(e) => handleTogglePermission('staff', 'configureWorkflows', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.staff?.configureWorkflows ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.guest?.configureWorkflows}
+                          onChange={(e) => handleTogglePermission('guest', 'configureWorkflows', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.guest?.configureWorkflows ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-3.5 px-4 font-bold text-slate-700">Create & Modify Sprint Tasks</td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <select
+                          value={permissions.owner?.createTasks || 'yes'}
+                          onChange={(e) => handleTogglePermission('owner', 'createTasks', e.target.value)}
+                          className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                        >
+                          <option value="yes">All Tasks</option>
+                          <option value="assigned">Assigned Only</option>
+                          <option value="no">No Access</option>
+                        </select>
+                      ) : (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border capitalize ${
+                          permissions.owner?.createTasks === 'yes' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                          permissions.owner?.createTasks === 'assigned' ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-rose-600 bg-rose-50 border-rose-100'
+                        }`}>
+                          {permissions.owner?.createTasks === 'yes' ? 'All Tasks' : permissions.owner?.createTasks === 'assigned' ? 'Assigned Only' : 'No Access'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <select
+                          value={permissions.staff?.createTasks || 'yes'}
+                          onChange={(e) => handleTogglePermission('staff', 'createTasks', e.target.value)}
+                          className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                        >
+                          <option value="yes">All Tasks</option>
+                          <option value="assigned">Assigned Only</option>
+                          <option value="no">No Access</option>
+                        </select>
+                      ) : (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border capitalize ${
+                          permissions.staff?.createTasks === 'yes' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                          permissions.staff?.createTasks === 'assigned' ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-rose-600 bg-rose-50 border-rose-100'
+                        }`}>
+                          {permissions.staff?.createTasks === 'yes' ? 'All Tasks' : permissions.staff?.createTasks === 'assigned' ? 'Assigned Only' : 'No Access'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <select
+                          value={permissions.guest?.createTasks || 'assigned'}
+                          onChange={(e) => handleTogglePermission('guest', 'createTasks', e.target.value)}
+                          className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg p-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                        >
+                          <option value="yes">All Tasks</option>
+                          <option value="assigned">Assigned Only</option>
+                          <option value="no">No Access</option>
+                        </select>
+                      ) : (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border capitalize ${
+                          permissions.guest?.createTasks === 'yes' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                          permissions.guest?.createTasks === 'assigned' ? 'text-indigo-600 bg-indigo-50 border-indigo-100' : 'text-rose-600 bg-rose-50 border-rose-100'
+                        }`}>
+                          {permissions.guest?.createTasks === 'yes' ? 'All Tasks' : permissions.guest?.createTasks === 'assigned' ? 'Assigned Only' : 'No Access'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-3.5 px-4 font-bold text-slate-700">Post Comments & Message Feed</td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.owner?.postComments}
+                          onChange={(e) => handleTogglePermission('owner', 'postComments', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.owner?.postComments ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.staff?.postComments}
+                          onChange={(e) => handleTogglePermission('staff', 'postComments', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.staff?.postComments ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isOwner ? (
+                        <input
+                          type="checkbox"
+                          checked={!!permissions.guest?.postComments}
+                          onChange={(e) => handleTogglePermission('guest', 'postComments', e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        />
+                      ) : (
+                        permissions.guest?.postComments ? (
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[11px]">✓</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Dynamic Activity Monitor Block */}
+      {teamSubTab === 'activity' && isOwner && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                <Activity size={18} className="text-indigo-600 animate-pulse" />
+                <span>Admin User Activity Monitor</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Track and audit real-time changes, system configurations, and collaborative team activity across the workspace.
+              </p>
+            </div>
+
+            {/* Filter controls */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Search actions..."
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48 font-medium duration-150"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 bg-slate-50 px-3 py-2 border border-slate-200 rounded-xl">
+                <Filter size={12} className="text-slate-400" />
+                <select
+                  value={activityUserFilter}
+                  onChange={(e) => setActivityUserFilter(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Members</option>
+                  <option value="system">Platform Bot</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {loadingLogs ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-2">
+              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-slate-400 font-medium">Fetching real-time activity stream...</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden border border-slate-100 rounded-2xl">
+              <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                {activityLogs
+                  .filter(log => {
+                    const matchesUser = activityUserFilter === 'all' || log.userId === activityUserFilter;
+                    const matchesSearch = !activitySearch.trim() || 
+                      log.action.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                      (log.userName && log.userName.toLowerCase().includes(activitySearch.toLowerCase()));
+                    return matchesUser && matchesSearch;
+                  })
+                  .map((log) => {
+                    // Match user profile
+                    const logUser = users.find(u => u.id === log.userId);
+                    const name = log.userName || logUser?.name || 'Unknown User';
+                    const avatarColor = logUser?.avatarColor || 'bg-slate-150 text-slate-600';
+                    const avatarText = logUser?.avatarText || log.userName?.slice(0, 2).toUpperCase() || '??';
+                    const isSystem = log.userId === 'system';
+
+                    return (
+                      <div key={log.id} className="p-4 hover:bg-slate-50/50 transition duration-150 flex items-start gap-3">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black tracking-wider border shrink-0 ${isSystem ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : avatarColor}`}>
+                          {isSystem ? 'SYS' : avatarText}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              {name}
+                              {!isSystem && (
+                                <span className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                  {logUser?.role || 'Staff'}
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                              <Clock size={10} />
+                              {new Date(log.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-650 font-medium leading-relaxed bg-slate-50/50 p-2 rounded-lg border border-slate-100/50">
+                            {log.action}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                {activityLogs.length === 0 && (
+                  <div className="text-center py-12 text-slate-450">
+                    <Activity size={32} className="mx-auto text-slate-300 mb-2" />
+                    <p className="text-xs font-bold">No activity logs recorded yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* --- ADD NEW MEMBER MODAL (OWNER ONLY) --- */}
       {showAddModal && isOwner && (
