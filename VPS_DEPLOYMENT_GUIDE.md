@@ -32,6 +32,8 @@ cd /var/www/worksuite
 unzip task-management.zip -d task-management
 ```
 
+use > git clone (repo)
+
 Verify that you are in the correct directory where `package.json` resides:
 ```bash
 cd /var/www/worksuite/task-management
