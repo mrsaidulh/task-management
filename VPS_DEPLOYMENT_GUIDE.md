@@ -48,8 +48,8 @@ Update your Ubuntu packages and fetch the official runtimes:
 sudo apt update && sudo apt upgrade -y
 
 # 1. Install Node.js LTS (NodeSource Node 20 recommended)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y nodejs
 
 # Verify runtimes
 node -v
