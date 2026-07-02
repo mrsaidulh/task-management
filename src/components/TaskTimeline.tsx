@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Task, Project } from '../types';
+import { Task, Project, UserProfile } from '../types';
 import { TEAM_MEMBERS } from '../data';
 import { GanttChart, Calendar, ChevronRight } from 'lucide-react';
 
@@ -8,14 +8,17 @@ interface TaskTimelineProps {
   projects: Project[];
   activeProject: string;
   onOpenTaskDetails: (task: Task) => void;
+  users?: UserProfile[];
 }
 
 export default function TaskTimeline({
   tasks,
   projects,
   activeProject,
-  onOpenTaskDetails
+  onOpenTaskDetails,
+  users
 }: TaskTimelineProps) {
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
   // Filter tasks that have at least a due date
   const timelineTasks = useMemo(() => {
     let pool = activeProject === 'all' ? tasks : tasks.filter(t => t.projectId === activeProject);
@@ -148,7 +151,7 @@ export default function TaskTimeline({
               </div>
             ) : (
               timelineTasks.map((task) => {
-                const assignee = TEAM_MEMBERS.find(m => m.id === task.assigneeId);
+                const assignee = activeUsers.find(m => m.id === task.assigneeId);
                 const project = projects.find(p => p.id === task.projectId);
                 const placement = getTaskGridPlacement(task);
 

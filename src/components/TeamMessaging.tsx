@@ -19,6 +19,7 @@ interface TeamMessagingProps {
   onSendMessage: (channelId: string, text: string) => Promise<void>;
   currentUser: UserProfile;
   onlineUsers: Record<string, boolean>;
+  users?: UserProfile[];
 }
 
 const CHANNELS = [
@@ -34,8 +35,10 @@ export default function TeamMessaging({
   onSelectChannel,
   onSendMessage,
   currentUser,
-  onlineUsers
+  onlineUsers,
+  users
 }: TeamMessagingProps) {
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
   const [inputText, setInputText] = useState('');
   const [chatSearch, setChatSearch] = useState('');
   const [sending, setSending] = useState(false);
@@ -80,7 +83,7 @@ export default function TeamMessaging({
       if (part.startsWith('@')) {
         const nameQuery = part.slice(1).trim().toLowerCase();
         // Check if query matches check any team member
-        const found = TEAM_MEMBERS.some(m => m.name.toLowerCase().includes(nameQuery));
+        const found = activeUsers.some(m => m.name.toLowerCase().includes(nameQuery));
         if (found) {
           return (
             <span key={index} className="bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded-md mx-0.5 inline-block text-[11px]">
@@ -134,7 +137,7 @@ export default function TeamMessaging({
 
           <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest px-2.5 mt-6 mb-2">Team Directory</p>
           <div className="space-y-2 px-1">
-            {TEAM_MEMBERS.map(member => (
+            {activeUsers.map(member => (
               <div key={member.id} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${member.avatarColor}`}>
@@ -194,7 +197,7 @@ export default function TeamMessaging({
             </div>
           ) : (
             filteredMessages.map((msg) => {
-              const sender = TEAM_MEMBERS.find(m => m.id === msg.senderId);
+              const sender = activeUsers.find(m => m.id === msg.senderId);
               const isSystem = msg.senderId === 'system_bot';
               const isMe = msg.senderId === currentUser.id;
 

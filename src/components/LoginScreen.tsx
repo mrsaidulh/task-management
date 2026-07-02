@@ -118,7 +118,7 @@ export default function LoginScreen({ onLoginSuccess, availableUsers }: LoginScr
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[600px]">
         
         {/* Left Informative Column */}
-        <div className="lg:col-span-5 bg-gradient-to-tr from-indigo-650 from-indigo-700 to-violet-800 p-8 lg:p-12 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-5 bg-gradient-to-tr from-indigo-650 from-indigo-700 to-violet-800 p-8 lg:p-12 text-white flex flex-col justify-center relative overflow-hidden">
           <div className="absolute top-0 right-0 -mt-12 -mr-12 w-48 h-48 bg-white/5 rounded-full blur-2xl" />
           <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl" />
           
@@ -142,34 +142,6 @@ export default function LoginScreen({ onLoginSuccess, availableUsers }: LoginScr
               </p>
             </div>
           </div>
-
-          <div className="space-y-4 pt-8 lg:pt-0 relative z-10">
-            <p className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-200 border-b border-indigo-500/30 pb-2">
-              Available Demo Team Members:
-            </p>
-            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-              {(availableUsers.length > 0 ? availableUsers : []).slice(0, 5).map((user) => (
-                <button
-                  key={user.id}
-                  onClick={() => fillDemoCredentials(user)}
-                  className="w-full flex items-center justify-between text-left p-2.5 rounded-xl hover:bg-white/10 active:bg-white/20 transition-all duration-150 group border border-transparent hover:border-white/10"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${user.avatarColor || 'bg-white/15'}`}>
-                      {user.avatarText}
-                    </div>
-                    <div className="truncate min-w-0 text-xs">
-                      <p className="font-bold text-white group-hover:text-indigo-100 transition-colors leading-tight">{user.name}</p>
-                      <p className="text-[10px] text-indigo-200 font-semibold leading-none truncate mt-0.5">{user.role}</p>
-                    </div>
-                  </div>
-                  <div className="text-[9px] bg-white/15 group-hover:bg-white/25 text-indigo-100 font-bold px-2 py-0.5 rounded-md duration-150 shrink-0">
-                    Auto-Fill
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Right Form Column */}
@@ -184,7 +156,7 @@ export default function LoginScreen({ onLoginSuccess, availableUsers }: LoginScr
               <p className="text-xs text-slate-500">
                 {isRegistering 
                   ? 'Recruit a new profile to Fluresta workspace with personalized parameters.' 
-                  : 'Enter your credentials or click a demo account on the left to sign in.'
+                  : 'Enter your credentials to sign in.'
                 }
               </p>
             </div>

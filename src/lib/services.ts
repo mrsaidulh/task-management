@@ -80,7 +80,12 @@ export async function applyWorkflowAction(task: Task, rule: WorkflowRule, trigge
 
   if (rule.actionType === 'reassign') {
     updates.assigneeId = rule.actionValue;
-    const targetUser = TEAM_MEMBERS.find(m => m.id === rule.actionValue);
+    let activeUsers = TEAM_MEMBERS;
+    try {
+      const uRes = await fetch('/api/users');
+      if (uRes.ok) activeUsers = await uRes.json();
+    } catch (e) {}
+    const targetUser = activeUsers.find(m => m.id === rule.actionValue);
     actionDescription = `Assigned task to ${targetUser ? targetUser.name : 'System User'}`;
     
     // Save to server
@@ -377,7 +382,12 @@ export async function updateTask(oldTask: Task, updates: Partial<Task>, user: Us
   } else if (updates.priority && updates.priority !== oldTask.priority) {
     actionMessage = `Changed priority of "${oldTask.title}" to ${updates.priority.toUpperCase()}`;
   } else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
-    const newAssignee = TEAM_MEMBERS.find(m => m.id === updates.assigneeId);
+    let activeUsers = TEAM_MEMBERS;
+    try {
+      const uRes = await fetch('/api/users');
+      if (uRes.ok) activeUsers = await uRes.json();
+    } catch (e) {}
+    const newAssignee = activeUsers.find(m => m.id === updates.assigneeId);
     actionMessage = `Reassigned "${oldTask.title}" to ${newAssignee ? newAssignee.name : 'Unknown'}`;
   }
 
@@ -604,7 +614,14 @@ export async function createProjectFromTemplate(
   // 1. Create Project
   const projId = 'proj_' + Math.floor(Math.random() * 1000000);
   const initialRoles: Record<string, any> = {};
-  TEAM_MEMBERS.forEach(m => {
+
+  let activeUsers = TEAM_MEMBERS;
+  try {
+    const res = await fetch('/api/users');
+    if (res.ok) activeUsers = await res.json();
+  } catch (e) {}
+
+  activeUsers.forEach(m => {
     initialRoles[m.id] = m.id === user.id ? 'Admin' : 'Member';
   });
 

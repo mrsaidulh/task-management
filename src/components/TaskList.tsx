@@ -42,6 +42,7 @@ interface TaskListProps {
   searchQuery?: string;
   onSearchQueryChange?: (val: string) => void;
   currentUser: UserProfile;
+  users?: UserProfile[];
 }
 
 interface GroupHeaderProps {
@@ -97,6 +98,7 @@ interface SortableTaskRowProps {
   isOverdue: (task: Task) => boolean;
   getPriorityStyle: (p: string) => string;
   isTaskGuest: boolean;
+  users?: UserProfile[];
 }
 
 function SortableTaskRow({
@@ -107,7 +109,8 @@ function SortableTaskRow({
   onUpdateStatus,
   isOverdue,
   getPriorityStyle,
-  isTaskGuest
+  isTaskGuest,
+  users
 }: SortableTaskRowProps) {
   const {
     attributes,
@@ -125,7 +128,8 @@ function SortableTaskRow({
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const assignee = TEAM_MEMBERS.find(m => m.id === task.assigneeId);
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
+  const assignee = activeUsers.find(m => m.id === task.assigneeId);
   const project = projects.find(p => p.id === task.projectId);
   const overdue = isOverdue(task);
   const subCompleted = task.checklist.filter(c => c.completed).length;
@@ -319,7 +323,8 @@ export default function TaskList({
   onReorderTask,
   searchQuery,
   onSearchQueryChange,
-  currentUser
+  currentUser,
+  users
 }: TaskListProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [localSearchQuery, setLocalSearchQuery] = useState('');
@@ -569,6 +574,7 @@ export default function TaskList({
                                 isOverdue={isOverdue}
                                 getPriorityStyle={getPriorityStyle}
                                 isTaskGuest={isTaskGuest}
+                                users={users}
                               />
                             );
                           })}

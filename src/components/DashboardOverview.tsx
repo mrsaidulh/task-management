@@ -25,6 +25,7 @@ interface DashboardOverviewProps {
   onOpenTaskDetails: (task: Task) => void;
   currentUser: UserProfile;
   onUpdateProject?: (projId: string, updates: Partial<Project>) => Promise<void>;
+  users?: UserProfile[];
 }
 
 export default function DashboardOverview({
@@ -36,8 +37,11 @@ export default function DashboardOverview({
   onSelectProject,
   onOpenTaskDetails,
   currentUser,
-  onUpdateProject
+  onUpdateProject,
+  users
 }: DashboardOverviewProps) {
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
+
   const activeProjObj = useMemo(() => {
     return projects.find(p => p.id === activeProject);
   }, [projects, activeProject]);
@@ -72,7 +76,7 @@ export default function DashboardOverview({
   // Compute workload breakdown by assignee
   const assigneeWorkload = useMemo(() => {
     const counts: Record<string, { total: number; completed: number; load: number }> = {};
-    TEAM_MEMBERS.forEach(m => {
+    activeUsers.forEach(m => {
       counts[m.id] = { total: 0, completed: 0, load: 0 };
     });
 
@@ -88,7 +92,7 @@ export default function DashboardOverview({
     });
 
     return Object.entries(counts).map(([userId, val]) => {
-      const user = TEAM_MEMBERS.find(m => m.id === userId);
+      const user = activeUsers.find(m => m.id === userId);
       return {
         id: userId,
         name: user ? user.name : 'Unassigned',
@@ -99,7 +103,7 @@ export default function DashboardOverview({
         ...val
       };
     });
-  }, [filteredTasks, onlineUsers]);
+  }, [filteredTasks, onlineUsers, activeUsers]);
 
   // Get tasks that are overdue
   const overdueTasksList = useMemo(() => {
@@ -180,7 +184,7 @@ export default function DashboardOverview({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span>{TEAM_MEMBERS.filter(m => onlineUsers[m.id]).length} Online Collaborators</span>
+          <span>{activeUsers.filter(m => onlineUsers[m.id]).length} Online Collaborators</span>
         </div>
       </div>
 
@@ -394,7 +398,7 @@ export default function DashboardOverview({
               </div>
               <div className="divide-y divide-rose-100">
                 {overdueTasksList.map(task => {
-                  const assignee = TEAM_MEMBERS.find(m => m.id === task.assigneeId);
+                  const assignee = activeUsers.find(m => m.id === task.assigneeId);
                   return (
                     <div 
                       key={task.id} 
@@ -495,7 +499,7 @@ export default function DashboardOverview({
 
               {/* Members assignments block */}
               <div className="space-y-3">
-                {TEAM_MEMBERS.map(member => {
+                {activeUsers.map(member => {
                   const role = getProjectRole(activeProjObj, member.id);
                   const canEditRoles = currentUserRole === 'Admin';
                   

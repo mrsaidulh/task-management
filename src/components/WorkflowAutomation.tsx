@@ -21,14 +21,17 @@ interface WorkflowAutomationProps {
   onCreateRule: (rule: Omit<WorkflowRule, 'id'>) => Promise<void>;
   onToggleRule: (rule: WorkflowRule) => Promise<void>;
   currentUser: UserProfile;
+  users?: UserProfile[];
 }
 
 export default function WorkflowAutomation({
   rules,
   onCreateRule,
   onToggleRule,
-  currentUser
+  currentUser,
+  users
 }: WorkflowAutomationProps) {
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
   const [showAddForm, setShowAddForm] = useState(false);
   const [ruleName, setRuleName] = useState('');
   
@@ -94,7 +97,7 @@ export default function WorkflowAutomation({
   const getReadableActionText = (type: string, value: string) => {
     switch (type) {
       case 'reassign':
-        const matchUser = TEAM_MEMBERS.find(m => m.id === value);
+        const matchUser = activeUsers.find(m => m.id === value);
         return `Automatically reassign task to: ${matchUser ? matchUser.name : 'Unknown Dev'}`;
       case 'add_tags':
         return `Automatically append tags: [${value}]`;
@@ -312,7 +315,7 @@ export default function WorkflowAutomation({
                   onChange={(e) => setActionValue(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 bg-white rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:border-indigo-500"
                 >
-                  {TEAM_MEMBERS.map(m => (
+                  {activeUsers.map(m => (
                     <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
                   ))}
                 </select>

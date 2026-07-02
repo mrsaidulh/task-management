@@ -45,6 +45,7 @@ interface TaskBoardProps {
   onMoveTask: (task: Task, newStatus: TaskStatus) => void;
   onReorderTask?: (task: Task, updates: Partial<Task>) => Promise<void>;
   currentUser: UserProfile;
+  users?: UserProfile[];
 }
 
 const COLUMNS: { id: TaskStatus; title: string; color: string; hoverColor: string }[] = [
@@ -89,6 +90,7 @@ interface BoardTaskCardProps {
   isTaskGuest: boolean;
   shiftTask: (task: Task, direction: 'left' | 'right', e: React.MouseEvent) => any;
   columnId: TaskStatus;
+  users?: UserProfile[];
 }
 
 function BoardTaskCard({
@@ -100,7 +102,8 @@ function BoardTaskCard({
   currentUser,
   isTaskGuest,
   shiftTask,
-  columnId
+  columnId,
+  users
 }: BoardTaskCardProps) {
   const {
     attributes,
@@ -118,7 +121,8 @@ function BoardTaskCard({
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const assignee = TEAM_MEMBERS.find(m => m.id === task.assigneeId);
+  const activeUsers = users && users.length > 0 ? users : TEAM_MEMBERS;
+  const assignee = activeUsers.find(m => m.id === task.assigneeId);
   const project = projects.find(p => p.id === task.projectId);
   const completedSubtasks = task.checklist.filter(c => c.completed).length;
   const totalSubtasks = task.checklist.length;
@@ -329,7 +333,8 @@ export default function TaskBoard({
   onAddTaskClick,
   onMoveTask,
   onReorderTask,
-  currentUser
+  currentUser,
+  users
 }: TaskBoardProps) {
   const [localTasks, setLocalTasks] = React.useState<Task[]>(tasks);
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null);
@@ -609,6 +614,7 @@ export default function TaskBoard({
                           isTaskGuest={isTaskGuest}
                           shiftTask={shiftTask}
                           columnId={column.id}
+                          users={users}
                         />
                       );
                     })}
@@ -639,6 +645,7 @@ export default function TaskBoard({
                   isTaskGuest={isTaskGuest}
                   shiftTask={() => {}}
                   columnId={task.status}
+                  users={users}
                 />
               </div>
             );

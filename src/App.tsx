@@ -911,6 +911,7 @@ export default function App() {
               onOpenTaskDetails={setSelectedTask}
               currentUser={currentUser}
               onUpdateProject={updateProject}
+              users={users}
             />
           )}
 
@@ -928,6 +929,7 @@ export default function App() {
                 await updateTask(task, updates, currentUser, rules);
               }}
               currentUser={currentUser}
+              users={users}
             />
           )}
 
@@ -947,6 +949,7 @@ export default function App() {
               searchQuery={searchQuery}
               onSearchQueryChange={setSearchQuery}
               currentUser={currentUser}
+              users={users}
             />
           )}
 
@@ -966,6 +969,7 @@ export default function App() {
               projects={projects}
               activeProject={activeProject}
               onOpenTaskDetails={setSelectedTask}
+              users={users}
             />
           )}
 
@@ -979,6 +983,7 @@ export default function App() {
                 await toggleWorkflowRule(rule);
               }}
               currentUser={currentUser}
+              users={users}
             />
           )}
 
@@ -992,6 +997,7 @@ export default function App() {
               }}
               currentUser={currentUser}
               onlineUsers={onlineUsers}
+              users={users}
             />
           )}
 
